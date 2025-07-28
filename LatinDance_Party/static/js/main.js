@@ -906,8 +906,10 @@ async function handlePartySubmit(e) {
                 return;
             }
             
+            // Firebase ID로 통일하여 중복 방지
+            partyData.id = firestoreId;
             parties.push(partyData);
-            console.log('로컬 스토리지 파티 추가 완료, ID:', firestoreId);
+            console.log('로컬 스토리지 파티 추가 완료, Firebase ID:', firestoreId);
         }
         
         // 로컬 스토리지에 저장
@@ -1205,7 +1207,7 @@ function displayParty(party, containerId = 'parties-container', isPastParty = fa
             <button class="like-btn ${isLiked(party) ? 'liked' : ''}" onclick="toggleLike('${party.id}')">
                 좋아요
             </button>
-            <button class="view-btn" onclick="viewParty('${party.id}')">
+            <button class="view-btn" onclick="debugViewParty('${party.id}', '${party.title}')">
                 상세보기
             </button>
             <button class="share-btn" onclick="handleKakaoShare('${party.id}')">
@@ -1400,11 +1402,64 @@ async function toggleLike(partyId) {
     }
 }
 
+// 디버깅용 파티 상세보기 함수
+async function debugViewParty(partyId, expectedTitle) {
+    console.log('=== debugViewParty 시작 ===');
+    console.log('클릭된 파티 ID:', partyId);
+    console.log('예상 파티 제목:', expectedTitle);
+    console.log('클릭된 파티 ID 타입:', typeof partyId);
+    
+    // 로컬 스토리지에서 모든 파티 확인
+    const parties = JSON.parse(localStorage.getItem('latinDanceParties') || '[]');
+    console.log('=== 로컬 스토리지 전체 파티 목록 ===');
+    parties.forEach((p, i) => {
+        console.log(`${i+1}. ID: "${p.id}" (타입: ${typeof p.id}), 제목: "${p.title}"`);
+    });
+    
+    // 정확한 ID 매칭
+    const exactMatch = parties.find(p => p.id === partyId);
+    console.log('정확한 ID 매칭 결과:', exactMatch);
+    
+    // 제목 매칭 (부분 매칭 포함)
+    const titleMatch = parties.find(p => p.title && p.title.includes(expectedTitle));
+    console.log('제목 매칭 결과:', titleMatch);
+    
+    // "골드 생일빵" 특별 처리
+    if (expectedTitle.includes('골드 생일빵')) {
+        console.log('=== 골드 생일빵 특별 처리 ===');
+        const goldBirthdayMatches = parties.filter(p => p.title && p.title.includes('골드'));
+        console.log('골드 관련 파티들:', goldBirthdayMatches);
+        
+        if (goldBirthdayMatches.length > 0) {
+            console.log('골드 관련 파티를 찾았습니다:', goldBirthdayMatches[0]);
+            await viewParty(goldBirthdayMatches[0].id);
+            return;
+        }
+    }
+    
+    // 실제로 사용할 파티 결정
+    let targetParty = exactMatch;
+    if (!targetParty && titleMatch) {
+        console.log('ID 매칭 실패, 제목으로 대체');
+        targetParty = titleMatch;
+    }
+    
+    if (targetParty) {
+        console.log('최종 선택된 파티:', targetParty);
+        await viewParty(targetParty.id);
+    } else {
+        console.error('파티를 찾을 수 없습니다!');
+        console.log('로컬 스토리지에 해당 파티가 없습니다. 파티를 다시 등록해주세요.');
+        showMessage('파티 정보를 찾을 수 없습니다. 파티를 다시 등록해주세요.', 'error');
+    }
+}
+
 // 파티 상세보기
 async function viewParty(partyId) {
     try {
         console.log('=== viewParty 함수 시작 ===');
-        console.log('파티 ID:', partyId);
+        console.log('요청된 파티 ID:', partyId);
+        console.log('요청된 파티 ID 타입:', typeof partyId);
         
         // 현재 파티 ID 설정
         currentPartyId = partyId;
@@ -1413,19 +1468,42 @@ async function viewParty(partyId) {
         const parties = JSON.parse(localStorage.getItem('latinDanceParties') || '[]');
         console.log('로컬 스토리지 파티 개수:', parties.length);
         
-        // 로컬 스토리지에 저장된 모든 파티 ID 출력
-        console.log('=== 로컬 스토리지에 저장된 모든 파티 ID ===');
+        // 로컬 스토리지에 저장된 모든 파티 ID 출력 (강화된 디버깅)
+        console.log('=== 로컬 스토리지에 저장된 모든 파티 상세 정보 ===');
         parties.forEach((party, index) => {
-            console.log(`${index + 1}. ID: ${party.id}, 제목: ${party.title}`);
+            console.log(`${index + 1}. ID: "${party.id}" (타입: ${typeof party.id}), 제목: "${party.title}"`);
         });
         
+        // 정확한 매칭 확인
         const party = parties.find(p => p.id === partyId);
-        console.log('찾은 파티:', party);
+        console.log('정확한 ID 매칭 결과:', party);
+        
+        // 부분 매칭도 확인
+        const partialMatches = parties.filter(p => p.id && p.id.toString().includes(partyId.toString()));
+        console.log('부분 매칭 결과:', partialMatches);
+        
+        // 제목으로도 확인
+        const titleMatches = parties.filter(p => p.title && p.title.includes('골뽀라손'));
+        console.log('제목 매칭 결과 (골뽀라손):', titleMatches);
         
         if (party) {
             // 로컬 스토리지에서 파티를 찾았을 때
             console.log('로컬 스토리지에서 파티 찾음, 모달 표시 시작');
             showPartyModal(party);
+            return;
+        }
+        
+        // 정확한 매칭이 안 되면 제목으로 찾기
+        if (titleMatches.length > 0) {
+            console.log('제목으로 파티 찾음:', titleMatches[0]);
+            showPartyModal(titleMatches[0]);
+            return;
+        }
+        
+        // 부분 매칭으로 찾기
+        if (partialMatches.length > 0) {
+            console.log('부분 매칭으로 파티 찾음:', partialMatches[0]);
+            showPartyModal(partialMatches[0]);
             return;
         }
         
@@ -1485,9 +1563,21 @@ function showPartyModal(party) {
         return;
     }
     
-    // 강제로 새 모달 생성 (모든 파티에 적용)
-    console.log('새 모달 강제 생성:', party.title);
-    createAndShowModal(party);
+    // 모든 기존 모달 완전히 제거 (강화)
+    console.log('기존 모달 완전 제거 시작...');
+    const existingModals = document.querySelectorAll('#party-modal, .modal, [id*="modal"], [class*="modal"]');
+    existingModals.forEach(modal => {
+        console.log('모달 제거:', modal.id || modal.className);
+        modal.remove();
+    });
+    console.log('기존 모달 제거 완료');
+    
+    // DOM 정리 대기
+    setTimeout(() => {
+        console.log('새 모달 강제 생성:', party.title);
+        createAndShowModal(party);
+    }, 100);
+    
     return;
     
     // 모든 기존 모달 완전히 제거
@@ -2206,12 +2296,21 @@ function createAndShowModal(party) {
     
     console.log('=== 파티 데이터 검증 완료 ===');
     
-    // 기존 모달이 있다면 제거
-    const existingModal = document.getElementById('party-modal');
-    if (existingModal) {
-        console.log('기존 모달 제거');
-        existingModal.remove();
-    }
+    // 기존 모달 완전히 제거 (강화)
+    console.log('기존 모달 강력 제거 시작...');
+    const existingModals = document.querySelectorAll('#party-modal, .modal, [id*="modal"], [class*="modal"]');
+    existingModals.forEach(modal => {
+        console.log('모달 강력 제거:', modal.id || modal.className);
+        modal.remove();
+    });
+    
+    // body에서 직접 제거
+    const bodyModals = document.body.querySelectorAll('[id*="modal"], [class*="modal"]');
+    bodyModals.forEach(modal => {
+        console.log('body에서 모달 제거:', modal.id || modal.className);
+        modal.remove();
+    });
+    console.log('기존 모달 강력 제거 완료');
     
     const date = new Date(party.date);
     const formattedDate = date.toLocaleDateString('ko-KR', {
@@ -2607,30 +2706,41 @@ async function editParty(partyId) {
         
         console.log('파티 정보 가져오기 시작...');
         
-        const doc = await db.collection('parties').doc(partyId).get();
-        console.log('Firestore 문서 조회 결과:', doc.exists ? '존재함' : '존재하지 않음');
+        // 먼저 로컬 스토리지에서 파티 찾기
+        const storedParties = JSON.parse(localStorage.getItem('latinDanceParties') || '[]');
+        let party = storedParties.find(p => p.id === partyId);
         
-        if (!doc.exists) {
-            console.log('파티를 찾을 수 없음:', partyId);
-            showMessage('파티를 찾을 수 없습니다. 새로 등록하시겠습니까?', 'error');
+        if (!party) {
+            console.log('로컬 스토리지에서 파티를 찾을 수 없음, Firestore 확인...');
             
-            // 편집 모드 종료하고 새 등록 모드로 전환
-            editingPartyId = null;
-            const cancelEditBtn = document.getElementById('cancel-edit-btn');
-            if (cancelEditBtn) {
-                cancelEditBtn.classList.add('hidden');
+            // Firestore에서 파티 정보 가져오기
+            const doc = await db.collection('parties').doc(partyId).get();
+            console.log('Firestore 문서 조회 결과:', doc.exists ? '존재함' : '존재하지 않음');
+            
+            if (!doc.exists) {
+                console.log('Firestore에서도 파티를 찾을 수 없음:', partyId);
+                showMessage('파티를 찾을 수 없습니다. 새로 등록하시겠습니까?', 'error');
+                
+                // 편집 모드 종료하고 새 등록 모드로 전환
+                editingPartyId = null;
+                const cancelEditBtn = document.getElementById('cancel-edit-btn');
+                if (cancelEditBtn) {
+                    cancelEditBtn.classList.add('hidden');
+                }
+                
+                // 폼 초기화
+                const form = document.getElementById('party-form');
+                if (form) {
+                    form.reset();
+                }
+                
+                return;
             }
             
-            // 폼 초기화
-            const form = document.getElementById('party-form');
-            if (form) {
-                form.reset();
-            }
-            
-            return;
+            party = doc.data();
+            party.id = partyId; // ID 추가
         }
         
-        const party = doc.data();
         console.log('편집할 파티 데이터:', party);
         
         // 편집 권한 확인
@@ -2748,17 +2858,27 @@ async function deleteParty(partyId) {
     try {
         console.log('파티 정보 가져오기 시작...');
         
-        // 파티 정보 가져오기
-        const doc = await db.collection('parties').doc(partyId).get();
-        console.log('Firestore 문서 조회 결과:', doc.exists ? '존재함' : '존재하지 않음');
+        // 먼저 로컬 스토리지에서 파티 찾기
+        const storedParties = JSON.parse(localStorage.getItem('latinDanceParties') || '[]');
+        let party = storedParties.find(p => p.id === partyId);
         
-        if (!doc.exists) {
-            console.log('파티를 찾을 수 없음:', partyId);
-            showMessage('파티를 찾을 수 없습니다.', 'error');
-            return;
+        if (!party) {
+            console.log('로컬 스토리지에서 파티를 찾을 수 없음, Firestore 확인...');
+            
+            // Firestore에서 파티 정보 가져오기
+            const doc = await db.collection('parties').doc(partyId).get();
+            console.log('Firestore 문서 조회 결과:', doc.exists ? '존재함' : '존재하지 않음');
+            
+            if (!doc.exists) {
+                console.log('Firestore에서도 파티를 찾을 수 없음:', partyId);
+                showMessage('파티를 찾을 수 없습니다.', 'error');
+                return;
+            }
+            
+            party = doc.data();
+            party.id = partyId; // ID 추가
         }
         
-        const party = doc.data();
         console.log('파티 데이터:', party);
         
         // 삭제 권한 확인
@@ -7877,7 +7997,9 @@ function deleteDuplicateParties() {
         parties.forEach((party, index) => {
             const key = `${party.title}_${party.startDate}_${party.barName}`;
             if (seen.has(key)) {
+                // 중복 발견 - 더 나중에 등록된 것(더 큰 인덱스)을 삭제 대상으로 추가
                 duplicates.push({ party, index });
+                console.log('중복 파티 발견:', party.title, '인덱스:', index);
             } else {
                 seen.add(key);
             }
@@ -7890,7 +8012,7 @@ function deleteDuplicateParties() {
             return;
         }
         
-        // 중복 파티 삭제 (나중에 등록된 것부터 삭제)
+        // 중복 파티 삭제 (나중에 등록된 것부터 삭제 - 진짜를 남기고 가짜를 삭제)
         duplicates.sort((a, b) => b.index - a.index);
         
         let deletedCount = 0;
@@ -7916,31 +8038,84 @@ function deleteDuplicateParties() {
     }
 }
 
-// 중복 파티 삭제 버튼 추가
+// 중복 파티 삭제 버튼을 햄버거 메뉴에 추가
 function addDuplicateDeleteButton() {
-    const container = document.getElementById('parties-container');
-    if (container) {
-        const deleteButton = document.createElement('button');
-        deleteButton.textContent = '🔄 중복 파티 정리';
-        deleteButton.className = 'duplicate-delete-btn';
-        deleteButton.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #ff4757;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            z-index: 1000;
-            font-size: 14px;
-        `;
-        deleteButton.onclick = deleteDuplicateParties;
+    const hamburgerMenu = document.querySelector('.hamburger-menu');
+    if (hamburgerMenu) {
+        // 기존 중복 정리 버튼이 있다면 제거
+        const existingButton = document.querySelector('.duplicate-delete-btn');
+        if (existingButton) {
+            existingButton.remove();
+        }
         
-        document.body.appendChild(deleteButton);
-        console.log('중복 파티 삭제 버튼 추가됨');
+        // 라틴 바 지도 메뉴 항목 찾기
+        const latinBarMapItem = hamburgerMenu.querySelector('a[href="#latin-bars-map"]');
+        
+        if (latinBarMapItem) {
+            // 라틴 바 지도 아래에 중복 정리 메뉴 추가
+            const duplicateMenuItem = document.createElement('a');
+            duplicateMenuItem.href = '#';
+            duplicateMenuItem.className = 'duplicate-delete-btn';
+            duplicateMenuItem.innerHTML = '🔄 중복 파티 정리';
+            duplicateMenuItem.style.cssText = `
+                display: block;
+                padding: 15px 20px;
+                color: #333;
+                text-decoration: none;
+                border-bottom: 1px solid #eee;
+                background: #fff8e1;
+                font-weight: 500;
+            `;
+            duplicateMenuItem.onclick = function(e) {
+                e.preventDefault();
+                deleteDuplicateParties();
+                // 햄버거 메뉴 닫기
+                const hamburgerMenu = document.querySelector('.hamburger-menu');
+                if (hamburgerMenu) {
+                    hamburgerMenu.classList.remove('active');
+                }
+            };
+            
+            // 라틴 바 지도 메뉴 다음에 삽입
+            latinBarMapItem.parentNode.insertBefore(duplicateMenuItem, latinBarMapItem.nextSibling);
+            console.log('중복 파티 정리 메뉴가 햄버거 메뉴에 추가됨');
+        }
     }
+}
+
+// 로컬 스토리지 정리 함수
+function cleanupLocalStorageParties() {
+    console.log('=== 로컬 스토리지 정리 시작 ===');
+    
+    const parties = JSON.parse(localStorage.getItem('latinDanceParties') || '[]');
+    console.log('정리 전 파티 개수:', parties.length);
+    
+    // 중복 제거 (ID 기준)
+    const uniqueParties = [];
+    const seenIds = new Set();
+    
+    parties.forEach(party => {
+        if (party.id && !seenIds.has(party.id)) {
+            seenIds.add(party.id);
+            uniqueParties.push(party);
+        } else {
+            console.log('중복 파티 제거:', party.title);
+        }
+    });
+    
+    console.log('정리 후 파티 개수:', uniqueParties.length);
+    
+    // 로컬 스토리지 업데이트
+    localStorage.setItem('latinDanceParties', JSON.stringify(uniqueParties));
+    
+    console.log('=== 로컬 스토리지 정리 완료 ===');
+    console.log('정리된 파티 목록:');
+    uniqueParties.forEach((p, i) => {
+        console.log(`${i+1}. ${p.title} (ID: ${p.id})`);
+    });
+    
+    // 페이지 새로고침
+    location.reload();
 }
 
 // 시간 입력을 30분 간격으로 제한
