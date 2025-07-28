@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>라틴댄스 파티 커뮤니티 - 전국 라틴댄스 정보</title>
     
+    <!-- Base URL 설정 (공유 링크 문제 해결) -->
+    <base href="/">
+    
     <!-- SEO 메타 태그 추가 -->
     <meta name="description" content="전국의 라틴댄스 파티 정보, 살사, 바차타, 차차차 등 라틴댄스 커뮤니티. 파티 일정, 장소, 댄스 강습 정보를 제공합니다.">
     <meta name="keywords" content="라틴댄스, 살사, 바차타, 차차차, 룸바, 자이브, 댄스파티, 댄스커뮤니티, 댄스강습">
@@ -24,7 +27,49 @@
     <meta name="twitter:description" content="전국의 라틴댄스 파티를 발견하고 새로운 친구들을 만나보세요! 살사, 바차타, 차차차 등 다양한 라틴댄스 정보를 제공합니다.">
     <meta name="twitter:image" content="https://via.placeholder.com/400x400/FF6B6B/FFFFFF?text=라틴댄스+파티">
     
-    <link rel="stylesheet" href="static/css/style.css">
+    <link rel="stylesheet" href="static/css/style.css" onerror="loadFallbackCSS()">
+    
+    <script>
+    // CSS 로딩 실패 시 fallback 처리
+    function loadFallbackCSS() {
+        console.warn('CSS 로딩 실패, fallback CSS 적용');
+        const fallbackCSS = `
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+            .content-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+            button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; cursor: pointer; }
+            input, select, textarea { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; }
+            .party-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; }
+            .youtube-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+            .youtube-card { border: 1px solid #ddd; padding: 10px; }
+            .pagination-controls { text-align: center; margin: 20px 0; }
+            .pagination-btn { padding: 8px 16px; margin: 0 5px; background: #007bff; color: white; border: none; cursor: pointer; }
+            .page-number { padding: 8px 12px; margin: 0 3px; border: 1px solid #ddd; cursor: pointer; }
+            .page-number.active { background: #007bff; color: white; }
+        `;
+        const style = document.createElement('style');
+        style.textContent = fallbackCSS;
+        document.head.appendChild(style);
+    }
+    
+    // CSS 로딩 상태 확인
+    window.addEventListener('load', function() {
+        const styles = document.styleSheets;
+        let cssLoaded = false;
+        for (let i = 0; i < styles.length; i++) {
+            try {
+                if (styles[i].href && styles[i].href.includes('style.css')) {
+                    cssLoaded = true;
+                    break;
+                }
+            } catch (e) {
+                // CORS 오류 등으로 접근할 수 없는 경우
+            }
+        }
+        if (!cssLoaded) {
+            loadFallbackCSS();
+        }
+    });
+    </script>
     
     <!-- Google AdSense -->
     <meta name="google-adsense-account" content="ca-pub-4982616646212353">
@@ -186,6 +231,10 @@
                 <div class="form-group">
                     <label for="party-poster">파티 포스터:</label>
                     <input type="file" id="party-poster" name="file" accept="image/*">
+                    <div class="file-size-warning">
+                        <span class="warning-icon">⚠️</span>
+                        <span class="warning-text">파일 크기는 1MB 이하로 업로드해주세요. (큰 파일은 자동으로 압축됩니다)</span>
+                    </div>
                     <div id="poster-preview"></div>
                 </div>
 
@@ -312,6 +361,24 @@
             <!-- 유튜브 영상 그리드 -->
             <div id="youtube-grid" class="youtube-grid">
                 <!-- 유튜브 영상들이 여기에 동적으로 추가됩니다 -->
+            </div>
+            
+            <!-- 페이지네이션 컨트롤 -->
+            <div id="youtube-pagination" class="pagination-controls" style="display: none;">
+                <div class="pagination-info">
+                    <span id="pagination-info">페이지 1 / 1</span>
+                </div>
+                <div class="pagination-buttons">
+                    <button id="prev-page-btn" class="pagination-btn" onclick="changePage(-1)" disabled>
+                        <span>◀</span> 이전
+                    </button>
+                    <div id="page-numbers" class="page-numbers">
+                        <!-- 페이지 번호들이 여기에 동적으로 추가됩니다 -->
+                    </div>
+                    <button id="next-page-btn" class="pagination-btn" onclick="changePage(1)">
+                        다음 <span>▶</span>
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -811,10 +878,45 @@
                         <span id="youtube-video-date"></span>
                         <span id="youtube-video-author"></span>
                     </div>
+                    
+                    <!-- 추천 및 공유 버튼 -->
+                    <div class="video-interaction-bar" style="margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                        <div class="interaction-buttons" style="display: flex; gap: 1rem; align-items: center;">
+                            <button class="interaction-btn like-btn" id="youtube-like-btn" onclick="toggleYouTubeLike()" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+                                <span id="youtube-like-icon">🤍</span>
+                                <span id="youtube-like-count">0</span>
+                            </button>
+                            <button class="interaction-btn share-btn" onclick="shareYouTubeVideo()" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+                                <span>📤</span>
+                                <span>공유</span>
+                            </button>
+                            <button class="interaction-btn" onclick="openYouTubeInNewTab()" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+                                <span>🌐</span>
+                                <span>YouTube에서 보기</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 댓글 섹션 -->
+                    <div class="youtube-comments-section" style="margin-bottom: 1.5rem;">
+                        <h4 style="margin-bottom: 1rem; color: #333;">💬 댓글</h4>
+                        
+                        <!-- 댓글 작성 폼 -->
+                        <div class="comment-form" style="margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                            <textarea id="youtube-comment-input" placeholder="댓글을 작성해주세요..." style="width: 100%; min-height: 80px; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-family: inherit;"></textarea>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
+                                <span id="youtube-comment-count" style="font-size: 0.9rem; color: #666;">0개의 댓글</span>
+                                <button onclick="addYouTubeComment()" style="padding: 0.5rem 1.5rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer;">댓글 작성</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 댓글 목록 -->
+                        <div id="youtube-comments-list" class="comments-list" style="max-height: 300px; overflow-y: auto;">
+                            <!-- 댓글들이 여기에 동적으로 추가됩니다 -->
+                        </div>
+                    </div>
+                    
                     <div class="video-actions">
-                        <button class="video-action-btn" onclick="openYouTubeInNewTab()">
-                            <span>🌐</span> YouTube에서 보기
-                        </button>
                         <button class="video-action-btn" onclick="closeYouTubeVideoModal()">
                             <span>❌</span> 닫기
                         </button>

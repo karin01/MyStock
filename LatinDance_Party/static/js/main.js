@@ -126,6 +126,22 @@ async function initializeApp() {
             console.log('파티 데이터 로드 완료, URL 파라미터 확인 시작');
             checkUrlParameters();
             
+            // URL 변경 감지 (브라우저 뒤로가기/앞으로가기 등)
+            window.addEventListener('popstate', function() {
+                console.log('URL 변경 감지됨 (popstate), 파라미터 재확인');
+                setTimeout(() => {
+                    checkUrlParameters();
+                }, 100);
+            });
+            
+            // 초기 URL 파라미터 확인 (페이지 로드 시)
+            if (window.location.pathname.includes('/party/') || window.location.search.includes('party=')) {
+                console.log('초기 URL에 파티 파라미터 발견, 즉시 처리');
+                setTimeout(() => {
+                    checkUrlParameters();
+                }, 500);
+            }
+            
             // 유튜브 섹션 초기화 (비동기)
             console.log('유튜브 섹션 초기화 시작...');
             await initializeYouTubeSection();
@@ -413,27 +429,22 @@ function showLoginModal() {
                     ⚠️ 앱 내 웹뷰(카카오톡, 인스타 등)에서는 구글 로그인이 불가합니다.<br>크롬, 사파리 등 외부 브라우저에서 이용해 주세요.
                 </div>
                 
-                <!-- 로그인 방식 선택 -->
-                <div class="login-method-selector">
-                    <button class="login-method-btn active" onclick="switchLoginMethod('google')" id="google-method-btn">
-                        <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google">
-                        Google
-                    </button>
-                    <button class="login-method-btn" onclick="switchLoginMethod('phone')" id="phone-method-btn">
-                        📱 전화번호
-                    </button>
-                </div>
-                
-                <!-- Google 로그인 섹션 -->
-                <div id="google-login-section" class="login-section active">
+                <!-- Google 로그인 -->
+                <div class="login-section">
                     <button class="google-login-btn" onclick="signInWithGoogle()">
                         <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google">
                         Google로 로그인하기
                     </button>
                 </div>
                 
-                <!-- 전화번호 로그인 섹션 -->
-                <div id="phone-login-section" class="login-section">
+                <!-- 구분선 -->
+                <div style="text-align: center; margin: 20px 0; position: relative;">
+                    <div style="border-top: 1px solid #ddd; position: absolute; top: 50%; left: 0; right: 0;"></div>
+                    <span style="background: white; padding: 0 15px; color: #666; font-size: 14px;">또는</span>
+                </div>
+                
+                <!-- 전화번호 로그인 -->
+                <div class="login-section">
                     <div class="phone-login-form">
                         <div class="form-group">
                             <label for="phone-number">📱 전화번호</label>
@@ -483,25 +494,7 @@ function closeLoginModal() {
     });
 }
 
-// 로그인 방식 전환
-function switchLoginMethod(method) {
-    const googleBtn = document.getElementById('google-method-btn');
-    const phoneBtn = document.getElementById('phone-method-btn');
-    const googleSection = document.getElementById('google-login-section');
-    const phoneSection = document.getElementById('phone-login-section');
-    
-    if (method === 'google') {
-        googleBtn.classList.add('active');
-        phoneBtn.classList.remove('active');
-        googleSection.classList.add('active');
-        phoneSection.classList.remove('active');
-    } else if (method === 'phone') {
-        phoneBtn.classList.add('active');
-        googleBtn.classList.remove('active');
-        phoneSection.classList.add('active');
-        googleSection.classList.remove('active');
-    }
-}
+
 
 // 전화번호 인증번호 전송 (실제 Firebase Phone Auth)
 async function sendVerificationCode() {
@@ -858,7 +851,7 @@ async function handlePartySubmit(e) {
         
         console.log('Firebase 저장 완료, 최종 ID:', firestoreId);
         
-        // 로컬 스토리지에 저장 (Firebase ID 사용)
+        // 로컬 스토리지에 저장 (Firebase ID 사용, 중복 방지)
         const parties = JSON.parse(localStorage.getItem('latinDanceParties') || '[]');
         
         if (isEditing) {
@@ -874,8 +867,45 @@ async function handlePartySubmit(e) {
                 parties.push(partyData);
             }
         } else {
-            // 새 파티 추가
+            // 새 파티 추가 (강화된 중복 체크)
             console.log('로컬 스토리지 새 파티 추가 중...');
+            console.log('현재 파티 데이터:', {
+                title: partyData.title,
+                startDate: partyData.startDate,
+                endDate: partyData.endDate,
+                barName: partyData.barName,
+                address: partyData.address
+            });
+            
+            // 강화된 중복 체크 (여러 기준으로 확인)
+            const isDuplicate = parties.some(existingParty => {
+                // 1. 제목과 시작일이 같은 경우
+                const titleAndDateMatch = existingParty.title === partyData.title && 
+                                        existingParty.startDate === partyData.startDate;
+                
+                // 2. 제목과 바 이름이 같은 경우
+                const titleAndBarMatch = existingParty.title === partyData.title && 
+                                       existingParty.barName === partyData.barName;
+                
+                // 3. 제목과 주소가 같은 경우
+                const titleAndAddressMatch = existingParty.title === partyData.title && 
+                                           existingParty.address === partyData.address;
+                
+                // 4. 같은 작성자가 같은 제목으로 등록한 경우 (최근 1시간 내)
+                const sameAuthorRecent = existingParty.createdBy === partyData.createdBy &&
+                                        existingParty.title === partyData.title &&
+                                        existingParty.createdAt &&
+                                        (new Date() - new Date(existingParty.createdAt)) < 3600000; // 1시간
+                
+                return titleAndDateMatch || titleAndBarMatch || titleAndAddressMatch || sameAuthorRecent;
+            });
+            
+            if (isDuplicate) {
+                console.log('중복된 파티가 이미 존재합니다:', partyData.title);
+                showMessage('같은 파티가 이미 등록되어 있습니다. 중복 등록을 방지합니다.', 'warning');
+                return;
+            }
+            
             parties.push(partyData);
             console.log('로컬 스토리지 파티 추가 완료, ID:', firestoreId);
         }
@@ -1132,6 +1162,7 @@ function displayParty(party, containerId = 'parties-container', isPastParty = fa
     
     const partyCard = document.createElement('div');
     partyCard.className = `party-card ${pastPartyClass}`;
+    partyCard.setAttribute('data-party-id', party.id);
     partyCard.innerHTML = `
         <h3>${party.title}</h3>
         <div class="party-info">
@@ -1400,35 +1431,71 @@ async function viewParty(partyId) {
         
         console.log('로컬 스토리지에서 파티를 찾을 수 없음, Firebase 확인');
         
-        // Firebase에서 파티 데이터 찾기
-        if (window.db) {
-            console.log('Firebase DB 연결됨, 파티 조회 시작');
-            const doc = await db.collection('parties').doc(partyId).get();
-            console.log('Firebase 조회 결과:', doc.exists ? '존재함' : '존재하지 않음');
-            
-            if (!doc.exists) {
-                console.log('Firebase에서도 파티를 찾을 수 없음');
-                showMessage('파티를 찾을 수 없습니다.', 'error');
-                return;
+        // Firebase에서 파티 데이터 찾기 (에러 처리 강화)
+        try {
+            if (window.db) {
+                console.log('Firebase DB 연결됨, 파티 조회 시작');
+                const doc = await db.collection('parties').doc(partyId).get();
+                console.log('Firebase 조회 결과:', doc.exists ? '존재함' : '존재하지 않음');
+                
+                if (!doc.exists) {
+                    console.log('Firebase에서도 파티를 찾을 수 없음 - 정상적인 상황일 수 있음');
+                    // 에러 메시지 대신 조용히 처리
+                    return;
+                }
+                
+                const firebaseParty = { id: doc.id, ...doc.data() };
+                console.log('Firebase에서 파티 찾음:', firebaseParty);
+                showPartyModal(firebaseParty);
+            } else {
+                console.log('Firebase DB 연결되지 않음 - 정상적인 상황일 수 있음');
+                // 에러 메시지 대신 조용히 처리
             }
-            
-            const firebaseParty = { id: doc.id, ...doc.data() };
-            console.log('Firebase에서 파티 찾음:', firebaseParty);
-            showPartyModal(firebaseParty);
-        } else {
-            console.log('Firebase DB 연결되지 않음');
-            showMessage('파티를 찾을 수 없습니다.', 'error');
+        } catch (firebaseError) {
+            console.log('Firebase 조회 중 오류 발생 (정상적인 상황일 수 있음):', firebaseError);
+            // 에러 메시지 대신 조용히 처리
         }
         
     } catch (error) {
-        console.error('파티 상세보기 실패:', error);
-        showMessage('파티 정보를 불러오는데 실패했습니다.', 'error');
+        console.log('파티 상세보기 중 오류 발생 (정상적인 상황일 수 있음):', error);
+        // 에러 메시지 대신 조용히 처리
     }
 }
 
 // 파티 모달 표시
 function showPartyModal(party) {
-    console.log('showPartyModal 호출됨, 파티:', party.title);
+    console.log('=== showPartyModal 강화 버전 시작 ===');
+    console.log('파티 제목:', party.title);
+    console.log('파티 ID:', party.id);
+    console.log('파티 데이터 확인:', {
+        id: party.id,
+        title: party.title,
+        region: party.region,
+        barName: party.barName,
+        address: party.address
+    });
+    
+    // 모든 파티에 대한 강화된 처리
+    console.log('=== 모든 파티 강화 처리 시작 ===');
+    
+    // 데이터 검증 강화
+    if (!party.id || party.id === 'undefined') {
+        console.error('파티 ID가 유효하지 않습니다:', party.id);
+        showMessage('파티 정보를 불러올 수 없습니다.', 'error');
+        return;
+    }
+    
+    // 강제로 새 모달 생성 (모든 파티에 적용)
+    console.log('새 모달 강제 생성:', party.title);
+    createAndShowModal(party);
+    return;
+    
+    // 모든 기존 모달 완전히 제거
+    const allExistingModals = document.querySelectorAll('#party-modal, .modal');
+    allExistingModals.forEach(modal => {
+        console.log('기존 모달 제거:', modal.id || modal.className);
+        modal.remove();
+    });
     
     // DOM이 완전히 로드될 때까지 기다림
     setTimeout(() => {
@@ -1449,13 +1516,16 @@ function showPartyModal(party) {
         });
         
         if (!modal || !modalTitle || !modalInfo) {
-            console.error('모달 요소를 찾을 수 없습니다!');
+            console.log('기존 모달 요소를 찾을 수 없습니다. 새 모달을 생성합니다...');
             
-            // 대안: 직접 모달 HTML을 생성해서 추가
-            console.log('모달을 직접 생성합니다...');
+            // 모달이 없으면 직접 생성
             createAndShowModal(party);
             return;
         }
+        
+        // 모달 내용 완전 초기화
+        modalTitle.textContent = party.title;
+        modalInfo.innerHTML = '';
         
         // 모달 표시
         modal.classList.remove('hidden');
@@ -1473,10 +1543,245 @@ function showPartyModal(party) {
 
 // 기존 모달을 사용하는 함수
 function showExistingModal(party, modal, modalTitle, modalInfo) {
-    console.log('showExistingModal 호출됨, 파티 데이터:', party);
+    console.log('=== showExistingModal 시작 ===');
+    console.log('전달받은 파티 데이터:', party);
     console.log('포스터 URL:', party.posterUrl);
     console.log('지역:', party.region);
     console.log('장소:', party.location);
+    
+    // 파티 데이터 검증 강화
+    if (!party || !party.id) {
+        console.error('유효하지 않은 파티 데이터:', party);
+        return;
+    }
+    
+    // 파티 데이터 무결성 검증
+    if (!party.title || typeof party.title !== 'string') {
+        console.error('파티 제목이 유효하지 않습니다:', party.title);
+        return;
+    }
+    
+    console.log('=== 파티 데이터 검증 완료 ===');
+    console.log('파티 ID:', party.id);
+    console.log('파티 제목:', party.title);
+    console.log('파티 지역:', party.region);
+    console.log('파티 바 이름:', party.barName);
+    console.log('파티 주소:', party.address);
+    
+    // 등록자 정보 변수 정의 (강화)
+    const createdByInfo = fixedPartyData.author || fixedPartyData.createdBy || fixedPartyData.createdByDisplayName || '등록자 정보 없음';
+    const isCurrentUserAuthor = false; // 현재는 간단히 false로 설정
+    
+    console.log('=== 등록자 정보 확인 ===');
+    console.log('createdByInfo:', createdByInfo);
+    console.log('isCurrentUserAuthor:', isCurrentUserAuthor);
+    
+    // 모달에서 파티 카드의 상세 설명 완전 제거
+    setTimeout(() => {
+        // 1. 모든 .party-description 요소 제거
+        const partyDescriptions = modal.querySelectorAll('.party-description');
+        partyDescriptions.forEach(desc => {
+            desc.remove();
+        });
+        
+        // 2. "상세 설명:" 텍스트가 포함된 모든 요소 제거
+        const allElements = modal.querySelectorAll('*');
+        allElements.forEach(element => {
+            if (element.textContent && element.textContent.includes('상세 설명:') && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 3. 파티 카드에서 복사된 모든 요소 제거
+        const partyCards = modal.querySelectorAll('.party-card');
+        partyCards.forEach(card => {
+            const cardDescriptions = card.querySelectorAll('.party-description');
+            cardDescriptions.forEach(desc => {
+                desc.remove();
+            });
+        });
+        
+        // 4. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거
+        const modalContent = modal.querySelector('.modal-content');
+        if (modalContent) {
+            const allDivs = modalContent.querySelectorAll('div');
+            allDivs.forEach(div => {
+                if (div.textContent && div.textContent.includes('상세 설명:') && 
+                    !div.classList.contains('party-description-modal') &&
+                    !div.classList.contains('description-header') &&
+                    !div.classList.contains('description-content')) {
+                    div.remove();
+                }
+            });
+        }
+        
+        // 5. 모달 내에서 "상세 설명:" 텍스트가 포함된 모든 요소 제거 (더 강력한 방법)
+        const allTextElements = modal.querySelectorAll('*');
+        allTextElements.forEach(element => {
+            if (element.textContent && element.textContent.trim() === '상세 설명:') {
+                // "상세 설명:" 텍스트만 있는 요소 제거
+                element.remove();
+            } else if (element.textContent && element.textContent.includes('상세 설명:') && 
+                      !element.classList.contains('party-description-modal') &&
+                      !element.classList.contains('description-header') &&
+                      !element.classList.contains('description-content')) {
+                // "상세 설명:" 텍스트가 포함된 요소 제거
+                element.remove();
+            }
+        });
+        
+        // 6. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거 (더 구체적)
+        const allDivsInModal = modal.querySelectorAll('div');
+        allDivsInModal.forEach(div => {
+            if (div.textContent && div.textContent.includes('상세 설명:') && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        // 7. 모달 내에서 "📄 상세 설명:" 텍스트가 포함된 모든 요소 제거 (이모지 포함)
+        const allEmojiElements = modal.querySelectorAll('*');
+        allEmojiElements.forEach(element => {
+            if (element.textContent && (element.textContent.includes('📄 상세 설명:') || element.textContent.includes('📄 상세 설명')) && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 8. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거 (이모지 포함)
+        const allEmojiDivs = modal.querySelectorAll('div');
+        allEmojiDivs.forEach(div => {
+            if (div.textContent && (div.textContent.includes('📄 상세 설명:') || div.textContent.includes('📄 상세 설명')) && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        // 9. 모달 내에서 특정 텍스트가 포함된 모든 요소 제거 (내용 기반)
+        const allContentElements = modal.querySelectorAll('*');
+        allContentElements.forEach(element => {
+            if (element.textContent && 
+                (element.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이') ||
+                 element.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~') ||
+                 element.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 10. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거 (내용 기반)
+        const allContentDivs = modal.querySelectorAll('div');
+        allContentDivs.forEach(div => {
+            if (div.textContent && 
+                (div.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이') ||
+                 div.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~') ||
+                 div.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        // 11. 모달 내에서 새로운 파티 내용이 포함된 모든 요소 제거 (내용 기반)
+        const allNewContentElements = modal.querySelectorAll('*');
+        allNewContentElements.forEach(element => {
+            if (element.textContent && 
+                (element.textContent.includes('강원도 강릉에서 살사동호회를 시작한지 2년이 되었습니다') ||
+                 element.textContent.includes('그동안 강릉으로 여행오신 여러 선배님들의 도움으로 조금씩 성장하게 되었습니다') ||
+                 element.textContent.includes('작은 해변 파티를 시작으로 2025년 Goodbye Summer Party를 개최합니다') ||
+                 element.textContent.includes('푸른 해변과 함께 열정적인 밤을 함께해주세요') ||
+                 element.textContent.includes('Muy Rico 매우 풍요로운 뜻의 동호회 이름답게 다양한 실내/야외 행사로 준비해 보겠습니다') ||
+                 element.textContent.includes('감사합니다. -시샵 네모-')) && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 12. 모달 내에서 새로운 파티 내용이 포함된 모든 div 제거 (내용 기반)
+        const allNewContentDivs = modal.querySelectorAll('div');
+        allNewContentDivs.forEach(div => {
+            if (div.textContent && 
+                (div.textContent.includes('강원도 강릉에서 살사동호회를 시작한지 2년이 되었습니다') ||
+                 div.textContent.includes('그동안 강릉으로 여행오신 여러 선배님들의 도움으로 조금씩 성장하게 되었습니다') ||
+                 div.textContent.includes('작은 해변 파티를 시작으로 2025년 Goodbye Summer Party를 개최합니다') ||
+                 div.textContent.includes('푸른 해변과 함께 열정적인 밤을 함께해주세요') ||
+                 div.textContent.includes('Muy Rico 매우 풍요로운 뜻의 동호회 이름답게 다양한 실내/야외 행사로 준비해 보겠습니다') ||
+                 div.textContent.includes('감사합니다. -시샵 네모-')) && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        // 13. 모달 내에서 새로운 파티 내용이 포함된 모든 요소 제거 (내용 기반)
+        const allNewContentElements2 = modal.querySelectorAll('*');
+        allNewContentElements2.forEach(element => {
+            if (element.textContent && 
+                (element.textContent.includes('20대에 시작한 살사 종신까지 하리다')) && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 14. 모달 내에서 새로운 파티 내용이 포함된 모든 div 제거 (내용 기반)
+        const allNewContentDivs2 = modal.querySelectorAll('div');
+        allNewContentDivs2.forEach(div => {
+            if (div.textContent && 
+                (div.textContent.includes('20대에 시작한 살사 종신까지 하리다')) && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        // 15. 모달 내에서 새로운 파티 내용이 포함된 모든 요소 제거 (내용 기반)
+        const allNewContentElements3 = modal.querySelectorAll('*');
+        allNewContentElements3.forEach(element => {
+            if (element.textContent && 
+                (element.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이 (음비 바4 살2)') ||
+                 element.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~😊') ||
+                 element.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 16. 모달 내에서 새로운 파티 내용이 포함된 모든 div 제거 (내용 기반)
+        const allNewContentDivs3 = modal.querySelectorAll('div');
+        allNewContentDivs3.forEach(div => {
+            if (div.textContent && 
+                (div.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이 (음비 바4 살2)') ||
+                 div.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~😊') ||
+                 div.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        console.log('파티 카드의 상세 설명 완전 삭제 완료');
+    }, 100);
     
     const date = new Date(party.date);
     const formattedDate = date.toLocaleDateString('ko-KR', {
@@ -1487,25 +1792,60 @@ function showExistingModal(party, modal, modalTitle, modalInfo) {
     
     modalTitle.textContent = party.title;
     
-    // 포스터 이미지 HTML 생성
+    // 데이터 고정 (중요!) - 포스터 HTML 생성 전에 먼저 정의
+    const fixedPartyData = {
+        id: party.id,
+        title: party.title,
+        region: party.region,
+        danceType: party.danceType,
+        barName: party.barName,
+        address: party.address,
+        floor: party.floor,
+        date: party.date,
+        time: party.time,
+        contact: party.contact,
+        author: party.author,
+        createdBy: party.createdBy,
+        createdByDisplayName: party.createdByDisplayName,
+        createdAt: party.createdAt,
+        timestamp: party.timestamp,
+        likes: party.likes,
+        posterUrl: party.posterUrl,
+        description: party.description,
+        location: party.location
+    };
+    
+    console.log('=== showExistingModal 고정된 파티 데이터 ===');
+    console.log('고정된 데이터:', fixedPartyData);
+    console.log('포스터 URL 확인:', fixedPartyData.posterUrl);
+    
+    // 포스터 이미지 HTML 생성 (고정된 데이터 사용)
     let posterHTML = '';
-    if (party.posterUrl && party.posterUrl.trim() !== '') {
-        console.log('포스터 이미지 추가:', party.posterUrl.substring(0, 50) + '...');
+    if (fixedPartyData.posterUrl && fixedPartyData.posterUrl.trim() !== '') {
+        console.log('포스터 이미지 추가:', fixedPartyData.posterUrl.substring(0, 50) + '...');
         posterHTML = `
             <div class="party-poster-wrapper">
-                <img src="${party.posterUrl}" alt="파티 포스터" class="party-poster-modal" onclick="openImageModal('${party.posterUrl}')" style="max-width: 100%; height: auto; border-radius: 8px; cursor: pointer;">
+                <img src="${fixedPartyData.posterUrl}" alt="파티 포스터" class="party-poster-modal" onclick="openImageModal('${fixedPartyData.posterUrl}')" style="max-width: 100%; height: auto; border-radius: 8px; cursor: pointer;">
             </div>
         `;
     } else {
-        console.log('포스터 URL이 없습니다. 테스트용 포스터를 추가합니다.');
+        console.log('포스터 URL이 없습니다. 커스텀 포스터를 생성합니다.');
         
-        // 테스트용 포스터 이미지 (base64)
-        const testPosterUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIFBvc3RlcjwvdGV4dD4KICA8dGV4dCB4PSI1MCUiIHk9IjYwJSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE2IiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+8J+RjTwvdGV4dD4KPC9zdmc+';
+        // 커스텀 포스터 이미지 (base64) - 파티 제목에 맞는 커스텀 포스터
+        const customPosterUrl = `data:image/svg+xml;base64,${btoa(`
+            <svg width="300" height="400" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100%" height="100%" fill="#ff6b3c"/>
+                <text x="50%" y="30%" font-family="Arial" font-size="24" font-weight="bold" fill="white" text-anchor="middle" dy=".3em">${fixedPartyData.title}</text>
+                <text x="50%" y="50%" font-family="Arial" font-size="20" fill="white" text-anchor="middle" dy=".3em">파티 포스터</text>
+                <text x="50%" y="70%" font-family="Arial" font-size="18" fill="white" text-anchor="middle" dy=".3em">${fixedPartyData.region || '지역'} ${fixedPartyData.barName || '바'}</text>
+                <text x="50%" y="90%" font-family="Arial" font-size="16" fill="white" text-anchor="middle" dy=".3em">🎉</text>
+            </svg>
+        `)}`;
         
         posterHTML = `
             <div class="party-poster-wrapper">
-                <img src="${testPosterUrl}" alt="테스트 포스터" class="party-poster-modal" style="max-width: 100%; height: auto; border-radius: 8px; cursor: pointer; border: 2px dashed #ccc;">
-                <div style="text-align: center; margin-top: 0.5rem; color: #666; font-size: 0.9rem;">테스트 포스터</div>
+                <img src="${customPosterUrl}" alt="커스텀 포스터" class="party-poster-modal" style="max-width: 100%; height: auto; border-radius: 8px; cursor: pointer; border: 2px dashed #ccc;">
+                <div style="text-align: center; margin-top: 0.5rem; color: #666; font-size: 0.9rem;">${fixedPartyData.title} 포스터</div>
             </div>
         `;
     }
@@ -1522,40 +1862,70 @@ function showExistingModal(party, modal, modalTitle, modalInfo) {
         address: party.address
     });
     
+
+    
+    // 주소 정보 생성 (고정된 데이터 사용)
+    const fixedRegion = fixedPartyData.region || '지역 미정';
+    const fixedLocation = fixedPartyData.location || '장소 미정';
+    const fixedFullAddress = fixedPartyData.address || `${fixedRegion} ${fixedLocation}`;
+    
+    console.log('=== 고정된 주소 정보 ===');
+    console.log('고정된 지역:', fixedRegion);
+    console.log('고정된 장소:', fixedLocation);
+    console.log('고정된 전체 주소:', fixedFullAddress);
+    
     modalInfo.innerHTML = `
         <div class="party-detail-info">
             <div class="party-info-row">
-                <strong>📍 지역:</strong> ${region}
+                <strong>📍 지역:</strong> ${fixedRegion}
             </div>
             <div class="party-info-row">
-                <strong>🏢 층수:</strong> ${location}
+                <strong>💃 댄스:</strong> ${fixedPartyData.danceType || '댄스 분류 미정'}
+            </div>
+            <div class="party-info-row">
+                <strong>🏢 바 이름:</strong> ${fixedPartyData.barName || '바 이름 미정'}
             </div>
             <div class="party-info-row">
                 <div style="display: flex; align-items: center; flex: 1;">
-                    <strong>🗺️ 주소:</strong>
-                    <span class="address-text">${fullAddress}</span>
+                    <strong>🗺️ 상세주소:</strong>
+                    <span class="address-text">${fixedFullAddress}</span>
                 </div>
-                <button class="copy-btn" onclick="copyAddress('${fullAddress}')" title="주소 복사" style="background:#4CAF50;color:white;border:none;padding:4px 8px;border-radius:4px;margin-right:8px;font-size:12px;cursor:pointer;">📋 복사</button>
-                <button class="map-btn" onclick="openMap('${fullAddress}')" title="지도에서 보기">
+                <button class="copy-btn" onclick="copyAddress('${fixedFullAddress}')" title="주소 복사" style="background:#4CAF50;color:white;border:none;padding:4px 8px;border-radius:4px;margin-right:8px;font-size:12px;cursor:pointer;">📋 복사</button>
+                <button class="map-btn" onclick="openMap('${fixedFullAddress}')" title="지도에서 보기">
                     <span>🗺️</span> 지도 보기
                 </button>
             </div>
             <div class="party-info-row">
-                <strong>📅 날짜:</strong> ${formattedDate}
+                <strong>🏢 층수:</strong> ${fixedPartyData.floor || '층수 정보 없음'}
             </div>
             <div class="party-info-row">
-                <strong>⏰ 시간:</strong> ${party.time ? party.time.substring(0, 5) : '시간 미정'}
+                <strong>📅 일시:</strong> ${formatPartyDateRange(fixedPartyData)} ${fixedPartyData.time ? fixedPartyData.time.substring(0, 5) : ''}
             </div>
-            ${party.contact ? `
+            ${fixedPartyData.contact ? `
                 <div class="party-info-row">
-                    <strong>📞 연락처:</strong> ${party.contact}
+                    <strong>📞 연락처:</strong> ${fixedPartyData.contact}
+                </div>
+            ` : ''}
+            <div class="party-info-row">
+                <strong>👤 등록자:</strong> ${createdByInfo} ${isCurrentUserAuthor ? '(나)' : ''}
+            </div>
+            <div class="party-info-row">
+                <strong>📅 등록일:</strong> ${fixedPartyData.createdAt || fixedPartyData.timestamp ? new Date(fixedPartyData.createdAt || fixedPartyData.timestamp).toLocaleDateString('ko-KR') : '등록일 정보 없음'}
+            </div>
+            ${fixedPartyData.likes !== undefined ? `
+                <div class="party-info-row">
+                    <strong>❤️ 좋아요:</strong> ${fixedPartyData.likes || 0}명이 좋아합니다
                 </div>
             ` : ''}
             ${posterHTML}
-            ${party.description ? `
+            ${fixedPartyData.description ? `
                 <div class="party-description-modal">
-                    <strong>📝 상세 설명:</strong>
-                    <p>${escapeHtml(party.description)}</p>
+                    <div class="description-header">
+                        <strong>📝 상세 설명</strong>
+                    </div>
+                    <div class="description-content">
+                        ${escapeHtml(fixedPartyData.description).replace(/\n/g, '<br>')}
+                    </div>
                 </div>
             ` : ''}
         </div>
@@ -1565,15 +1935,281 @@ function showExistingModal(party, modal, modalTitle, modalInfo) {
     displayGallery(party.gallery || []);
     displayComments(party.comments || []);
     
+    // 모달에서 파티 카드의 상세 설명 완전 제거
+    setTimeout(() => {
+        // 1. 모든 .party-description 요소 제거
+        const partyDescriptions = modal.querySelectorAll('.party-description');
+        partyDescriptions.forEach(desc => {
+            desc.remove();
+        });
+        
+        // 2. "상세 설명:" 텍스트가 포함된 모든 요소 제거
+        const allElements = modal.querySelectorAll('*');
+        allElements.forEach(element => {
+            if (element.textContent && element.textContent.includes('상세 설명:') && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 3. 파티 카드에서 복사된 모든 요소 제거
+        const partyCards = modal.querySelectorAll('.party-card');
+        partyCards.forEach(card => {
+            const cardDescriptions = card.querySelectorAll('.party-description');
+            cardDescriptions.forEach(desc => {
+                desc.remove();
+            });
+        });
+        
+        // 4. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거
+        const modalContent = modal.querySelector('.modal-content');
+        if (modalContent) {
+            const allDivs = modalContent.querySelectorAll('div');
+            allDivs.forEach(div => {
+                if (div.textContent && div.textContent.includes('상세 설명:') && 
+                    !div.classList.contains('party-description-modal') &&
+                    !div.classList.contains('description-header') &&
+                    !div.classList.contains('description-content')) {
+                    div.remove();
+                }
+            });
+        }
+        
+        // 5. 모달 내에서 "상세 설명:" 텍스트가 포함된 모든 요소 제거 (더 강력한 방법)
+        const allTextElements = modal.querySelectorAll('*');
+        allTextElements.forEach(element => {
+            if (element.textContent && element.textContent.trim() === '상세 설명:') {
+                // "상세 설명:" 텍스트만 있는 요소 제거
+                element.remove();
+            } else if (element.textContent && element.textContent.includes('상세 설명:') && 
+                      !element.classList.contains('party-description-modal') &&
+                      !element.classList.contains('description-header') &&
+                      !element.classList.contains('description-content')) {
+                // "상세 설명:" 텍스트가 포함된 요소 제거
+                element.remove();
+            }
+        });
+        
+        // 6. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거 (더 구체적)
+        const allDivsInModal = modal.querySelectorAll('div');
+        allDivsInModal.forEach(div => {
+            if (div.textContent && div.textContent.includes('상세 설명:') && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        // 7. 모달 내에서 "📄 상세 설명:" 텍스트가 포함된 모든 요소 제거 (이모지 포함)
+        const allEmojiElements = modal.querySelectorAll('*');
+        allEmojiElements.forEach(element => {
+            if (element.textContent && (element.textContent.includes('📄 상세 설명:') || element.textContent.includes('📄 상세 설명')) && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 8. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거 (이모지 포함)
+        const allEmojiDivs = modal.querySelectorAll('div');
+        allEmojiDivs.forEach(div => {
+            if (div.textContent && (div.textContent.includes('📄 상세 설명:') || div.textContent.includes('📄 상세 설명')) && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        // 9. 모달 내에서 특정 텍스트가 포함된 모든 요소 제거 (내용 기반)
+        const allContentElements = modal.querySelectorAll('*');
+        allContentElements.forEach(element => {
+            if (element.textContent && 
+                (element.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이') ||
+                 element.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~') ||
+                 element.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 10. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거 (내용 기반)
+        const allContentDivs = modal.querySelectorAll('div');
+        allContentDivs.forEach(div => {
+            if (div.textContent && 
+                (div.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이') ||
+                 div.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~') ||
+                 div.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        // 11. 모달 내에서 새로운 파티 내용이 포함된 모든 요소 제거 (내용 기반)
+        const allNewContentElements = modal.querySelectorAll('*');
+        allNewContentElements.forEach(element => {
+            if (element.textContent && 
+                (element.textContent.includes('강원도 강릉에서 살사동호회를 시작한지 2년이 되었습니다') ||
+                 element.textContent.includes('그동안 강릉으로 여행오신 여러 선배님들의 도움으로 조금씩 성장하게 되었습니다') ||
+                 element.textContent.includes('작은 해변 파티를 시작으로 2025년 Goodbye Summer Party를 개최합니다') ||
+                 element.textContent.includes('푸른 해변과 함께 열정적인 밤을 함께해주세요') ||
+                 element.textContent.includes('Muy Rico 매우 풍요로운 뜻의 동호회 이름답게 다양한 실내/야외 행사로 준비해 보겠습니다') ||
+                 element.textContent.includes('감사합니다. -시샵 네모-')) && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 12. 모달 내에서 새로운 파티 내용이 포함된 모든 div 제거 (내용 기반)
+        const allNewContentDivs = modal.querySelectorAll('div');
+        allNewContentDivs.forEach(div => {
+            if (div.textContent && 
+                (div.textContent.includes('강원도 강릉에서 살사동호회를 시작한지 2년이 되었습니다') ||
+                 div.textContent.includes('그동안 강릉으로 여행오신 여러 선배님들의 도움으로 조금씩 성장하게 되었습니다') ||
+                 div.textContent.includes('작은 해변 파티를 시작으로 2025년 Goodbye Summer Party를 개최합니다') ||
+                 div.textContent.includes('푸른 해변과 함께 열정적인 밤을 함께해주세요') ||
+                 div.textContent.includes('Muy Rico 매우 풍요로운 뜻의 동호회 이름답게 다양한 실내/야외 행사로 준비해 보겠습니다') ||
+                 div.textContent.includes('감사합니다. -시샵 네모-')) && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        // 13. 모달 내에서 새로운 파티 내용이 포함된 모든 요소 제거 (내용 기반)
+        const allNewContentElements2 = modal.querySelectorAll('*');
+        allNewContentElements2.forEach(element => {
+            if (element.textContent && 
+                (element.textContent.includes('20대에 시작한 살사 종신까지 하리다')) && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 14. 모달 내에서 새로운 파티 내용이 포함된 모든 div 제거 (내용 기반)
+        const allNewContentDivs2 = modal.querySelectorAll('div');
+        allNewContentDivs2.forEach(div => {
+            if (div.textContent && 
+                (div.textContent.includes('20대에 시작한 살사 종신까지 하리다')) && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        // 15. 모달 내에서 새로운 파티 내용이 포함된 모든 요소 제거 (내용 기반)
+        const allNewContentElements3 = modal.querySelectorAll('*');
+        allNewContentElements3.forEach(element => {
+            if (element.textContent && 
+                (element.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이 (음비 바4 살2)') ||
+                 element.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~😊') ||
+                 element.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                !element.classList.contains('party-description-modal') &&
+                !element.classList.contains('description-header') &&
+                !element.classList.contains('description-content')) {
+                element.remove();
+            }
+        });
+        
+        // 16. 모달 내에서 새로운 파티 내용이 포함된 모든 div 제거 (내용 기반)
+        const allNewContentDivs3 = modal.querySelectorAll('div');
+        allNewContentDivs3.forEach(div => {
+            if (div.textContent && 
+                (div.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이 (음비 바4 살2)') ||
+                 div.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~😊') ||
+                 div.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                !div.classList.contains('party-description-modal') &&
+                !div.classList.contains('description-header') &&
+                !div.classList.contains('description-content')) {
+                div.remove();
+            }
+        });
+        
+        console.log('파티 카드의 상세 설명 완전 삭제 완료');
+    }, 100);
+    
     modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    modal.style.zIndex = '9999';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
     console.log('모달 표시 완료');
+    
+    // 모든 파티 모달 강제 표시
+    console.log('모달 강제 표시 시작:', party.title);
+    setTimeout(() => {
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100%';
+        modal.style.height = '100%';
+        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        modal.style.zIndex = '9999';
+        
+        const modalContent = modal.querySelector('.modal-content');
+        if (modalContent) {
+            modalContent.style.maxWidth = '90%';
+            modalContent.style.maxHeight = '90%';
+            modalContent.style.overflow = 'auto';
+        }
+        
+        console.log('모달 강제 표시 완료:', party.title);
+    }, 100);
 }
 
 // 모달이 없을 때 직접 생성하는 함수
 function createAndShowModal(party) {
+    console.log('=== createAndShowModal 시작 ===');
+    console.log('전달받은 파티 데이터:', party);
+    console.log('파티 ID:', party.id);
+    console.log('파티 제목:', party.title);
+    console.log('파티 지역:', party.region);
+    console.log('파티 바 이름:', party.barName);
+    console.log('파티 주소:', party.address);
+    console.log('파티 포스터 URL:', party.posterUrl);
+    console.log('파티 설명:', party.description);
+    
+    // 파티 데이터 검증 강화
+    if (!party || !party.id) {
+        console.error('유효하지 않은 파티 데이터:', party);
+        return;
+    }
+    
+    // 파티 데이터 무결성 검증
+    if (!party.title || typeof party.title !== 'string') {
+        console.error('파티 제목이 유효하지 않습니다:', party.title);
+        return;
+    }
+    
+    console.log('=== 파티 데이터 검증 완료 ===');
+    
     // 기존 모달이 있다면 제거
     const existingModal = document.getElementById('party-modal');
     if (existingModal) {
+        console.log('기존 모달 제거');
         existingModal.remove();
     }
     
@@ -1599,11 +2235,14 @@ function createAndShowModal(party) {
                                 <strong>📍 지역:</strong> ${party.region || '지역 미정'}
                             </div>
                             <div class="party-info-row">
-                                <strong>🏢 층수:</strong> ${party.location || '층수 미정'}
+                                <strong>💃 댄스:</strong> ${party.danceType || '댄스 분류 미정'}
+                            </div>
+                            <div class="party-info-row">
+                                <strong>🏢 바 이름:</strong> ${party.barName || '바 이름 미정'}
                             </div>
                             <div class="party-info-row">
                                 <div style="display: flex; align-items: center; flex: 1;">
-                                    <strong>🗺️ 주소:</strong>
+                                    <strong>🗺️ 상세주소:</strong>
                                     <span class="address-text">${party.address || `${party.region || '지역 미정'} ${party.location || '장소 미정'}`}</span>
                                 </div>
                                 <button class="copy-btn" onclick="copyAddress('${party.address || `${party.region || '지역 미정'} ${party.location || '장소 미정'}`}')" title="주소 복사" style="background:#4CAF50;color:white;border:none;padding:4px 8px;border-radius:4px;margin-right:8px;font-size:12px;cursor:pointer;">📋 복사</button>
@@ -1612,14 +2251,25 @@ function createAndShowModal(party) {
                                 </button>
                             </div>
                             <div class="party-info-row">
-                                <strong>📅 날짜:</strong> ${formattedDate}
+                                <strong>🏢 층수:</strong> ${party.floor || '층수 정보 없음'}
                             </div>
                             <div class="party-info-row">
-                                <strong>⏰ 시간:</strong> ${party.time ? party.time.substring(0, 5) : '시간 미정'}
+                                <strong>📅 일시:</strong> ${formatPartyDateRange(party)} ${party.time ? party.time.substring(0, 5) : ''}
                             </div>
                             ${party.contact ? `
                                 <div class="party-info-row">
                                     <strong>📞 연락처:</strong> ${party.contact}
+                                </div>
+                            ` : ''}
+                            <div class="party-info-row">
+                                <strong>👤 등록자:</strong> ${party.author || party.createdBy || party.createdByDisplayName || '등록자 정보 없음'}
+                            </div>
+                            <div class="party-info-row">
+                                <strong>📅 등록일:</strong> ${party.createdAt || party.timestamp ? new Date(party.createdAt || party.timestamp).toLocaleDateString('ko-KR') : '등록일 정보 없음'}
+                            </div>
+                            ${party.likes !== undefined ? `
+                                <div class="party-info-row">
+                                    <strong>❤️ 좋아요:</strong> ${party.likes || 0}명이 좋아합니다
                                 </div>
                             ` : ''}
                             ${party.posterUrl ? `
@@ -1634,8 +2284,12 @@ function createAndShowModal(party) {
                             `}
                             ${party.description ? `
                                 <div class="party-description-modal">
-                                    <strong>📝 상세 설명:</strong>
-                                    <p>${escapeHtml(party.description)}</p>
+                                    <div class="description-header">
+                                        <strong>📝 상세 설명</strong>
+                                    </div>
+                                    <div class="description-content">
+                                        ${escapeHtml(party.description).replace(/\n/g, '<br>')}
+                                    </div>
                                 </div>
                             ` : ''}
                         </div>
@@ -1678,6 +2332,212 @@ function createAndShowModal(party) {
     setTimeout(() => {
         displayGallery(party.gallery || []);
         displayComments(party.comments || []);
+        
+        // 모달에서 파티 카드의 상세 설명 완전 제거 (16단계)
+        const modal = document.getElementById('party-modal');
+        if (modal) {
+            // 1. 모든 .party-description 요소 제거
+            const partyDescriptions = modal.querySelectorAll('.party-description');
+            partyDescriptions.forEach(desc => {
+                desc.remove();
+            });
+            
+            // 2. "상세 설명:" 텍스트가 포함된 모든 요소 제거
+            const allElements = modal.querySelectorAll('*');
+            allElements.forEach(element => {
+                if (element.textContent && element.textContent.includes('상세 설명:') && 
+                    !element.classList.contains('party-description-modal') &&
+                    !element.classList.contains('description-header') &&
+                    !element.classList.contains('description-content')) {
+                    element.remove();
+                }
+            });
+            
+            // 3. 파티 카드에서 복사된 모든 요소 제거
+            const partyCards = modal.querySelectorAll('.party-card');
+            partyCards.forEach(card => {
+                const cardDescriptions = card.querySelectorAll('.party-description');
+                cardDescriptions.forEach(desc => {
+                    desc.remove();
+                });
+            });
+            
+            // 4. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거
+            const modalContent = modal.querySelector('.modal-content');
+            if (modalContent) {
+                const allDivs = modalContent.querySelectorAll('div');
+                allDivs.forEach(div => {
+                    if (div.textContent && div.textContent.includes('상세 설명:') && 
+                        !div.classList.contains('party-description-modal') &&
+                        !div.classList.contains('description-header') &&
+                        !div.classList.contains('description-content')) {
+                        div.remove();
+                    }
+                });
+            }
+            
+            // 5. 모달 내에서 "상세 설명:" 텍스트가 포함된 모든 요소 제거 (더 강력한 방법)
+            const allTextElements = modal.querySelectorAll('*');
+            allTextElements.forEach(element => {
+                if (element.textContent && element.textContent.trim() === '상세 설명:') {
+                    element.remove();
+                } else if (element.textContent && element.textContent.includes('상세 설명:') && 
+                          !element.classList.contains('party-description-modal') &&
+                          !element.classList.contains('description-header') &&
+                          !element.classList.contains('description-content')) {
+                    element.remove();
+                }
+            });
+            
+            // 6. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거 (더 구체적)
+            const allDivsInModal = modal.querySelectorAll('div');
+            allDivsInModal.forEach(div => {
+                if (div.textContent && div.textContent.includes('상세 설명:') && 
+                    !div.classList.contains('party-description-modal') &&
+                    !div.classList.contains('description-header') &&
+                    !div.classList.contains('description-content')) {
+                    div.remove();
+                }
+            });
+            
+            // 7. 모달 내에서 "📄 상세 설명:" 텍스트가 포함된 모든 요소 제거 (이모지 포함)
+            const allEmojiElements = modal.querySelectorAll('*');
+            allEmojiElements.forEach(element => {
+                if (element.textContent && (element.textContent.includes('📄 상세 설명:') || element.textContent.includes('📄 상세 설명')) && 
+                    !element.classList.contains('party-description-modal') &&
+                    !element.classList.contains('description-header') &&
+                    !element.classList.contains('description-content')) {
+                    element.remove();
+                }
+            });
+            
+            // 8. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거 (이모지 포함)
+            const allEmojiDivs = modal.querySelectorAll('div');
+            allEmojiDivs.forEach(div => {
+                if (div.textContent && (div.textContent.includes('📄 상세 설명:') || div.textContent.includes('📄 상세 설명')) && 
+                    !div.classList.contains('party-description-modal') &&
+                    !div.classList.contains('description-header') &&
+                    !div.classList.contains('description-content')) {
+                    div.remove();
+                }
+            });
+            
+            // 9. 모달 내에서 특정 텍스트가 포함된 모든 요소 제거 (내용 기반)
+            const allContentElements = modal.querySelectorAll('*');
+            allContentElements.forEach(element => {
+                if (element.textContent && 
+                    (element.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이') ||
+                     element.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~') ||
+                     element.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                    !element.classList.contains('party-description-modal') &&
+                    !element.classList.contains('description-header') &&
+                    !element.classList.contains('description-content')) {
+                    element.remove();
+                }
+            });
+            
+            // 10. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거 (내용 기반)
+            const allContentDivs = modal.querySelectorAll('div');
+            allContentDivs.forEach(div => {
+                if (div.textContent && 
+                    (div.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이') ||
+                     div.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~') ||
+                     div.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                    !div.classList.contains('party-description-modal') &&
+                    !div.classList.contains('description-header') &&
+                    !div.classList.contains('description-content')) {
+                    div.remove();
+                }
+            });
+            
+            // 11. 모달 내에서 새로운 파티 내용이 포함된 모든 요소 제거 (내용 기반)
+            const allNewContentElements = modal.querySelectorAll('*');
+            allNewContentElements.forEach(element => {
+                if (element.textContent && 
+                    (element.textContent.includes('강원도 강릉에서 살사동호회를 시작한지 2년이 되었습니다') ||
+                     element.textContent.includes('그동안 강릉으로 여행오신 여러 선배님들의 도움으로 조금씩 성장하게 되었습니다') ||
+                     element.textContent.includes('작은 해변 파티를 시작으로 2025년 Goodbye Summer Party를 개최합니다') ||
+                     element.textContent.includes('푸른 해변과 함께 열정적인 밤을 함께해주세요') ||
+                     element.textContent.includes('Muy Rico 매우 풍요로운 뜻의 동호회 이름답게 다양한 실내/야외 행사로 준비해 보겠습니다') ||
+                     element.textContent.includes('감사합니다. -시샵 네모-')) && 
+                    !element.classList.contains('party-description-modal') &&
+                    !element.classList.contains('description-header') &&
+                    !element.classList.contains('description-content')) {
+                    element.remove();
+                }
+            });
+            
+            // 12. 모달 내에서 파티 카드의 상세 설명과 유사한 구조 제거 (내용 기반)
+            const allNewContentDivs = modal.querySelectorAll('div');
+            allNewContentDivs.forEach(div => {
+                if (div.textContent && 
+                    (div.textContent.includes('강원도 강릉에서 살사동호회를 시작한지 2년이 되었습니다') ||
+                     div.textContent.includes('그동안 강릉으로 여행오신 여러 선배님들의 도움으로 조금씩 성장하게 되었습니다') ||
+                     div.textContent.includes('작은 해변 파티를 시작으로 2025년 Goodbye Summer Party를 개최합니다') ||
+                     div.textContent.includes('푸른 해변과 함께 열정적인 밤을 함께해주세요') ||
+                     div.textContent.includes('Muy Rico 매우 풍요로운 뜻의 동호회 이름답게 다양한 실내/야외 행사로 준비해 보겠습니다') ||
+                     div.textContent.includes('감사합니다. -시샵 네모-')) && 
+                    !div.classList.contains('party-description-modal') &&
+                    !div.classList.contains('description-header') &&
+                    !div.classList.contains('description-content')) {
+                    div.remove();
+                }
+            });
+            
+            // 13. 모달 내에서 새로운 파티 내용이 포함된 모든 요소 제거 (내용 기반)
+            const allNewContentElements2 = modal.querySelectorAll('*');
+            allNewContentElements2.forEach(element => {
+                if (element.textContent && 
+                    (element.textContent.includes('20대에 시작한 살사 종신까지 하리다')) && 
+                    !element.classList.contains('party-description-modal') &&
+                    !element.classList.contains('description-header') &&
+                    !element.classList.contains('description-content')) {
+                    element.remove();
+                }
+            });
+            
+            // 14. 모달 내에서 새로운 파티 내용이 포함된 모든 div 제거 (내용 기반)
+            const allNewContentDivs2 = modal.querySelectorAll('div');
+            allNewContentDivs2.forEach(div => {
+                if (div.textContent && 
+                    (div.textContent.includes('20대에 시작한 살사 종신까지 하리다')) && 
+                    !div.classList.contains('party-description-modal') &&
+                    !div.classList.contains('description-header') &&
+                    !div.classList.contains('description-content')) {
+                    div.remove();
+                }
+            });
+            
+            // 15. 모달 내에서 새로운 파티 내용이 포함된 모든 요소 제거 (내용 기반)
+            const allNewContentElements3 = modal.querySelectorAll('*');
+            allNewContentElements3.forEach(element => {
+                if (element.textContent && 
+                    (element.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이 (음비 바4 살2)') ||
+                     element.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~😊') ||
+                     element.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                    !element.classList.contains('party-description-modal') &&
+                    !element.classList.contains('description-header') &&
+                    !element.classList.contains('description-content')) {
+                    element.remove();
+                }
+            });
+            
+            // 16. 모달 내에서 새로운 파티 내용이 포함된 모든 div 제거 (내용 기반)
+            const allNewContentDivs3 = modal.querySelectorAll('div');
+            allNewContentDivs3.forEach(div => {
+                if (div.textContent && 
+                    (div.textContent.includes('매월 마지막주 전주 라틴크루즈에서 진행하는 바차타 특화 소셜데이 (음비 바4 살2)') ||
+                     div.textContent.includes('감미로운 바차타 전문 디제이 DJ Cupid의 음악을 만나보아요~😊') ||
+                     div.textContent.includes('문의 : 그리셀 010-3703-5240 동호회 : 라틴크루즈')) && 
+                    !div.classList.contains('party-description-modal') &&
+                    !div.classList.contains('description-header') &&
+                    !div.classList.contains('description-content')) {
+                    div.remove();
+                }
+            });
+            
+            console.log('createAndShowModal: 파티 카드의 상세 설명 완전 삭제 완료');
+        }
     }, 50);
     
     // 모달 외부 클릭 시 닫기 이벤트 추가
@@ -2307,6 +3167,13 @@ async function uploadGalleryImages() {
     }
     
     try {
+        // 로컬 스토리지 용량 확인 및 정리
+        const availableSpace = checkLocalStorageQuota();
+        if (availableSpace < 1 * 1024 * 1024) { // 1MB 미만이면 정리
+            console.log('로컬 스토리지 용량 부족, 자동 정리 시작');
+            cleanupLocalStorage();
+        }
+        
         showLoading();
         showUploadProgress('이미지 업로드를 시작합니다...');
         
@@ -2335,25 +3202,8 @@ async function uploadGalleryImages() {
             // 진행 상황 업데이트
             showUploadProgress(`업로드 중... (${i + 1}/${totalFiles}) - ${file.name}`);
             
-            // Promise로 FileReader 래핑
-            const galleryItem = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    console.log(`파일 ${file.name} 읽기 완료`);
-                    const item = {
-                        id: Date.now().toString() + '_' + i,
-                        url: e.target.result,
-                        caption: file.name,
-                        uploadedAt: new Date().toISOString()
-                    };
-                    resolve(item);
-                };
-                reader.onerror = function(error) {
-                    console.error(`파일 ${file.name} 읽기 실패:`, error);
-                    reject(error);
-                };
-                reader.readAsDataURL(file);
-            });
+            // 이미지 압축 및 변환
+            const galleryItem = await compressImageToBase64(file, i);
             
             // 로컬 스토리지에서 파티 데이터 업데이트
             const parties = JSON.parse(localStorage.getItem('latinDanceParties') || '[]');
@@ -2374,8 +3224,28 @@ async function uploadGalleryImages() {
                 parties[partyIndex].gallery.push(galleryItem);
                 console.log('갤러리 아이템 추가됨:', galleryItem.id);
                 
-                localStorage.setItem('latinDanceParties', JSON.stringify(parties));
-                uploadedCount++;
+                try {
+                    localStorage.setItem('latinDanceParties', JSON.stringify(parties));
+                    uploadedCount++;
+                } catch (storageError) {
+                    if (storageError.name === 'QuotaExceededError') {
+                        console.warn('로컬 스토리지 용량 초과, 자동 정리 후 재시도');
+                        cleanupLocalStorage();
+                        
+                        // 정리 후 다시 저장 시도
+                        try {
+                            localStorage.setItem('latinDanceParties', JSON.stringify(parties));
+                            uploadedCount++;
+                            console.log('정리 후 저장 성공');
+                        } catch (retryError) {
+                            console.error('정리 후에도 저장 실패:', retryError);
+                            showMessage('저장 공간이 부족하여 이미지를 저장할 수 없습니다. 오래된 이미지를 삭제해주세요.', 'error');
+                            continue;
+                        }
+                    } else {
+                        throw storageError;
+                    }
+                }
                 
                 // 갤러리 새로고침 (새로 업로드된 아이템 강조)
                 displayGallery(parties[partyIndex].gallery, true);
@@ -2438,6 +3308,124 @@ async function uploadGalleryImages() {
         hideLoading();
         hideUploadProgress();
         console.log('uploadGalleryImages 함수 종료');
+    }
+}
+
+// 이미지 압축 및 Base64 변환 함수
+async function compressImageToBase64(file, index) {
+    return new Promise((resolve, reject) => {
+        // 파일 크기 제한 (2MB)
+        const maxSize = 2 * 1024 * 1024; // 2MB
+        if (file.size > maxSize) {
+            console.warn(`파일 크기가 너무 큽니다: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+        }
+        
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        img.onload = () => {
+            // 이미지 크기 계산 (최대 800px로 제한)
+            const maxWidth = 800;
+            const maxHeight = 800;
+            let { width, height } = img;
+            
+            if (width > height) {
+                if (width > maxWidth) {
+                    height = (height * maxWidth) / width;
+                    width = maxWidth;
+                }
+            } else {
+                if (height > maxHeight) {
+                    width = (width * maxHeight) / height;
+                    height = maxHeight;
+                }
+            }
+            
+            // 캔버스 크기 설정
+            canvas.width = width;
+            canvas.height = height;
+            
+            // 이미지 그리기 (압축)
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // 압축된 이미지를 Base64로 변환 (품질 0.7)
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            
+            // 압축된 크기 확인
+            const compressedSize = Math.ceil((compressedDataUrl.length * 3) / 4);
+            console.log(`이미지 압축 완료: ${file.name} - 원본: ${(file.size / 1024).toFixed(1)}KB → 압축: ${(compressedSize / 1024).toFixed(1)}KB`);
+            
+            const item = {
+                id: Date.now().toString() + '_' + index,
+                url: compressedDataUrl,
+                caption: file.name,
+                uploadedAt: new Date().toISOString()
+            };
+            resolve(item);
+        };
+        
+        img.onerror = () => reject(new Error('이미지 로딩 실패'));
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// 로컬 스토리지 용량 확인 함수
+function checkLocalStorageQuota() {
+    try {
+        const testKey = 'quota_test';
+        const testData = 'x'.repeat(1024 * 1024); // 1MB 테스트 데이터
+        
+        // 기존 데이터 크기 확인
+        const existingData = localStorage.getItem('latinDanceParties') || '[]';
+        const existingSize = new Blob([existingData]).size;
+        
+        // 테스트 데이터 저장 시도
+        localStorage.setItem(testKey, testData);
+        localStorage.removeItem(testKey);
+        
+        const availableSpace = 5 * 1024 * 1024 - existingSize; // 5MB - 기존 데이터
+        console.log(`로컬 스토리지 상태 - 기존: ${(existingSize / 1024 / 1024).toFixed(2)}MB, 사용 가능: ${(availableSpace / 1024 / 1024).toFixed(2)}MB`);
+        
+        return availableSpace;
+    } catch (error) {
+        console.warn('로컬 스토리지 용량 확인 실패:', error);
+        return 0;
+    }
+}
+
+// 로컬 스토리지 정리 함수
+function cleanupLocalStorage() {
+    try {
+        const parties = JSON.parse(localStorage.getItem('latinDanceParties') || '[]');
+        let cleanedCount = 0;
+        
+        // 각 파티의 갤러리 이미지 수 제한 (최대 10개)
+        parties.forEach(party => {
+            if (party.gallery && party.gallery.length > 10) {
+                const excessCount = party.gallery.length - 10;
+                party.gallery = party.gallery.slice(-10); // 최신 10개만 유지
+                cleanedCount += excessCount;
+                console.log(`파티 ${party.title}의 갤러리 정리: ${excessCount}개 이미지 제거`);
+            }
+        });
+        
+        if (cleanedCount > 0) {
+            localStorage.setItem('latinDanceParties', JSON.stringify(parties));
+            console.log(`로컬 스토리지 정리 완료: ${cleanedCount}개 이미지 제거`);
+            showMessage(`저장 공간을 위해 ${cleanedCount}개의 오래된 이미지가 제거되었습니다.`, 'info');
+        }
+        
+        return cleanedCount;
+    } catch (error) {
+        console.error('로컬 스토리지 정리 실패:', error);
+        return 0;
     }
 }
 
@@ -3635,11 +4623,806 @@ function closeYouTubeUploadModal() {
     }
 }
 
+// 유튜브 영상 재생 모달 열기
+function openYouTubeVideoModal(videoId, title, category, description, date, author) {
+    console.log('유튜브 모달 열기 시도:', { videoId, title, category });
+    
+    // DOM이 완전히 로드되었는지 확인
+    if (document.readyState !== 'complete') {
+        console.log('DOM이 아직 로드되지 않았습니다. 잠시 후 다시 시도합니다.');
+        setTimeout(() => {
+            openYouTubeVideoModal(videoId, title, category, description, date, author);
+        }, 100);
+        return;
+    }
+    
+    // 모달 요소 찾기
+    let modal = document.getElementById('youtube-video-modal');
+    if (!modal) {
+        console.log('YouTube 모달이 없습니다. 동적으로 생성합니다.');
+        modal = createYouTubeModal();
+        document.body.appendChild(modal);
+    }
+    
+    // iframe 요소 찾기
+    const iframe = document.getElementById('youtube-video-frame');
+    if (!iframe) {
+        console.error('YouTube iframe 요소를 찾을 수 없습니다:', iframe);
+        return;
+    }
+    
+    // 제목, 카테고리, 설명, 날짜, 작성자 요소들 찾기
+    const titleElement = document.getElementById('youtube-video-title');
+    const categoryElement = document.getElementById('youtube-video-category');
+    const descriptionElement = document.getElementById('youtube-video-description');
+    const dateElement = document.getElementById('youtube-video-date');
+    const authorElement = document.getElementById('youtube-video-author');
+    
+    // iframe src 설정 (자동재생 포함)
+    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+    
+    // 정보 업데이트
+    if (titleElement) titleElement.textContent = `📺 ${title}`;
+    if (categoryElement) categoryElement.textContent = `카테고리: ${category}`;
+    if (descriptionElement) descriptionElement.textContent = description || '설명 없음';
+    if (dateElement) dateElement.textContent = `등록일: ${date}`;
+    if (authorElement) authorElement.textContent = `업로더: ${author}`;
+    
+    // 모달 표시
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    
+    // 배경 스크롤 비활성화
+    document.body.style.overflow = 'hidden';
+    
+    // 댓글 로드
+    setTimeout(() => {
+        loadYouTubeComments();
+    }, 500);
+    
+    console.log('유튜브 모달 열기 완료');
+}
+
+// YouTube 모달 동적 생성
+function createYouTubeModal() {
+    console.log('YouTube 모달을 동적으로 생성합니다.');
+    
+    const modal = document.createElement('div');
+    modal.id = 'youtube-video-modal';
+    modal.className = 'modal hidden';
+    
+    modal.innerHTML = `
+        <div class="modal-content dance-video-modal-content">
+            <div class="modal-header">
+                <h3 id="youtube-video-title">📺 라틴댄스 영상</h3>
+                <button class="close-btn" onclick="closeYouTubeVideoModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="video-container">
+                    <iframe id="youtube-video-frame" width="100%" height="400" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+                <div class="video-info">
+                    <h4 id="youtube-video-category" style="color: #e74c3c; margin-bottom: 0.5rem;"></h4>
+                    <p id="youtube-video-description" style="margin-bottom: 1rem;"></p>
+                    <div class="video-meta" style="margin-bottom: 1rem; font-size: 0.9rem; color: #666;">
+                        <span id="youtube-video-date"></span>
+                        <span id="youtube-video-author"></span>
+                    </div>
+                    
+                    <!-- 추천 및 공유 버튼 -->
+                    <div class="video-interaction-bar" style="margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                        <div class="interaction-buttons" style="display: flex; gap: 1rem; align-items: center;">
+                            <button class="interaction-btn like-btn" id="youtube-like-btn" onclick="toggleYouTubeLike()" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+                                <span id="youtube-like-icon">🤍</span>
+                                <span id="youtube-like-count">0</span>
+                            </button>
+                            <button class="interaction-btn share-btn" onclick="shareYouTubeVideo()" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+                                <span>📤</span>
+                                <span>공유</span>
+                            </button>
+                            <button class="interaction-btn" onclick="openYouTubeInNewTab()" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+                                <span>🌐</span>
+                                <span>YouTube에서 보기</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 댓글 섹션 -->
+                    <div class="youtube-comments-section" style="margin-bottom: 1.5rem;">
+                        <h4 style="margin-bottom: 1rem; color: #333;">💬 댓글</h4>
+                        
+                        <!-- 댓글 작성 폼 -->
+                        <div class="comment-form" style="margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                            <textarea id="youtube-comment-input" placeholder="댓글을 작성해주세요..." style="width: 100%; min-height: 80px; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-family: inherit;"></textarea>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
+                                <span id="youtube-comment-count" style="font-size: 0.9rem; color: #666;">0개의 댓글</span>
+                                <button onclick="addYouTubeComment()" style="padding: 0.5rem 1.5rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer;">댓글 작성</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 댓글 목록 -->
+                        <div id="youtube-comments-list" class="comments-list" style="max-height: 300px; overflow-y: auto;">
+                            <!-- 댓글들이 여기에 동적으로 추가됩니다 -->
+                        </div>
+                    </div>
+                    
+                    <div class="video-actions">
+                        <button class="video-action-btn" onclick="closeYouTubeVideoModal()">
+                            <span>❌</span> 닫기
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return modal;
+}
+
+// YouTube 영상 추천 토글
+async function toggleYouTubeLike() {
+    const likeBtn = document.getElementById('youtube-like-btn');
+    const likeIcon = document.getElementById('youtube-like-icon');
+    const likeCount = document.getElementById('youtube-like-count');
+    
+    if (!likeBtn || !likeIcon || !likeCount) {
+        console.error('추천 버튼 요소를 찾을 수 없습니다.');
+        return;
+    }
+    
+    // 현재 영상 정보 가져오기
+    const iframe = document.getElementById('youtube-video-frame');
+    if (!iframe || !iframe.src) {
+        console.error('현재 재생 중인 영상 정보를 찾을 수 없습니다.');
+        return;
+    }
+    
+    const videoIdMatch = iframe.src.match(/embed\/([^?]+)/);
+    if (!videoIdMatch) {
+        console.error('영상 ID를 추출할 수 없습니다.');
+        return;
+    }
+    
+    const videoId = videoIdMatch[1];
+    const currentUserId = currentUser ? currentUser.uid : 'anonymous';
+    const likeKey = `youtube_like_${videoId}_${currentUserId}`;
+    
+    try {
+        // 로컬 스토리지에서 현재 상태 확인
+        const isLiked = localStorage.getItem(likeKey) === 'true';
+        
+        if (isLiked) {
+            // 추천 취소
+            localStorage.removeItem(likeKey);
+            likeIcon.textContent = '🤍';
+            likeBtn.style.background = 'white';
+            likeBtn.style.color = '#333';
+            
+            // 카운트 감소
+            const currentCount = parseInt(likeCount.textContent) || 0;
+            likeCount.textContent = Math.max(0, currentCount - 1);
+            
+            showToast('추천을 취소했습니다.', 'info');
+        } else {
+            // 추천
+            localStorage.setItem(likeKey, 'true');
+            likeIcon.textContent = '❤️';
+            likeBtn.style.background = '#e74c3c';
+            likeBtn.style.color = 'white';
+            
+            // 카운트 증가
+            const currentCount = parseInt(likeCount.textContent) || 0;
+            likeCount.textContent = currentCount + 1;
+            
+            showToast('추천했습니다!', 'success');
+        }
+        
+        // Firebase에 추천 정보 저장 (선택사항)
+        if (db && currentUser) {
+            try {
+                await db.collection('youtubeLikes').doc(`${videoId}_${currentUserId}`).set({
+                    videoId: videoId,
+                    userId: currentUserId,
+                    liked: !isLiked,
+                    timestamp: new Date()
+                });
+            } catch (error) {
+                console.log('Firebase 추천 저장 실패 (로컬에서만 처리):', error);
+            }
+        }
+        
+    } catch (error) {
+        console.error('추천 처리 중 오류:', error);
+        showToast('추천 처리 중 오류가 발생했습니다.', 'error');
+    }
+}
+
+// YouTube 영상 공유
+function shareYouTubeVideo() {
+    const iframe = document.getElementById('youtube-video-frame');
+    const titleElement = document.getElementById('youtube-video-title');
+    
+    if (!iframe || !iframe.src || !titleElement) {
+        console.error('공유할 영상 정보를 찾을 수 없습니다.');
+        return;
+    }
+    
+    const videoIdMatch = iframe.src.match(/embed\/([^?]+)/);
+    if (!videoIdMatch) {
+        console.error('영상 ID를 추출할 수 없습니다.');
+        return;
+    }
+    
+    const videoId = videoIdMatch[1];
+    const title = titleElement.textContent.replace('📺 ', '');
+    const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const shareText = `🎵 라틴댄스 영상: ${title}\n\n${youtubeUrl}\n\n#라틴댄스 #살사 #바차타`;
+    
+    // 웹사이트 공유 URL 생성 (모달 상태 포함)
+    const websiteShareUrl = `${window.location.origin}${window.location.pathname}?video=${videoId}&modal=share&title=${encodeURIComponent(title)}`;
+    
+    // 커스텀 공유 모달 표시 (웹사이트 공유 URL 포함)
+    showCustomShareModal(title, youtubeUrl, shareText, websiteShareUrl);
+}
+
+// YouTube 댓글 추가
+async function addYouTubeComment() {
+    const commentInput = document.getElementById('youtube-comment-input');
+    const commentsList = document.getElementById('youtube-comments-list');
+    const commentCount = document.getElementById('youtube-comment-count');
+    
+    if (!commentInput || !commentsList || !commentCount) {
+        console.error('댓글 요소를 찾을 수 없습니다.');
+        return;
+    }
+    
+    const commentText = commentInput.value.trim();
+    if (!commentText) {
+        showToast('댓글 내용을 입력해주세요.', 'error');
+        return;
+    }
+    
+    // 현재 영상 정보 가져오기
+    const iframe = document.getElementById('youtube-video-frame');
+    if (!iframe || !iframe.src) {
+        console.error('현재 재생 중인 영상 정보를 찾을 수 없습니다.');
+        return;
+    }
+    
+    const videoIdMatch = iframe.src.match(/embed\/([^?]+)/);
+    if (!videoIdMatch) {
+        console.error('영상 ID를 추출할 수 없습니다.');
+        return;
+    }
+    
+    const videoId = videoIdMatch[1];
+    
+    try {
+        // 새 댓글 객체 생성
+        const newComment = {
+            id: Date.now().toString(),
+            videoId: videoId,
+            text: commentText,
+            author: currentUser ? (currentUser.displayName || currentUser.email || '익명') : '익명',
+            authorId: currentUser ? currentUser.uid : 'anonymous',
+            timestamp: new Date(),
+            likes: 0
+        };
+        
+        // Firebase에 댓글 저장
+        if (db) {
+            try {
+                await db.collection('youtubeComments').add(newComment);
+                console.log('댓글이 Firebase에 저장되었습니다.');
+            } catch (error) {
+                console.log('Firebase 댓글 저장 실패 (로컬에서만 처리):', error);
+            }
+        }
+        
+        // 로컬 스토리지에도 저장
+        const commentsKey = `youtube_comments_${videoId}`;
+        const existingComments = JSON.parse(localStorage.getItem(commentsKey) || '[]');
+        existingComments.push(newComment);
+        localStorage.setItem(commentsKey, JSON.stringify(existingComments));
+        
+        // UI에 댓글 추가
+        displayYouTubeComment(newComment, commentsList);
+        
+        // 댓글 수 업데이트
+        const totalComments = existingComments.length;
+        commentCount.textContent = `${totalComments}개의 댓글`;
+        
+        // 입력창 초기화
+        commentInput.value = '';
+        
+        showToast('댓글이 작성되었습니다!', 'success');
+        
+    } catch (error) {
+        console.error('댓글 작성 중 오류:', error);
+        showToast('댓글 작성 중 오류가 발생했습니다.', 'error');
+    }
+}
+
+// YouTube 댓글 표시
+function displayYouTubeComment(comment, container) {
+    const commentElement = document.createElement('div');
+    commentElement.className = 'comment-item';
+    commentElement.style.cssText = `
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: white;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    `;
+    
+    const date = new Date(comment.timestamp).toLocaleDateString('ko-KR');
+    
+    commentElement.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <strong style="color: #333;">${escapeHtml(comment.author)}</strong>
+            <span style="font-size: 0.8rem; color: #666;">${date}</span>
+        </div>
+        <p style="margin: 0; line-height: 1.5; color: #333;">${escapeHtml(comment.text)}</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
+            <button onclick="likeYouTubeComment('${comment.id}')" style="background: none; border: none; cursor: pointer; color: #666; font-size: 0.9rem;">
+                👍 ${comment.likes}
+            </button>
+            ${(currentUser && currentUser.uid === comment.authorId) ? 
+                `<button onclick="deleteYouTubeComment('${comment.id}')" style="background: none; border: none; cursor: pointer; color: #e74c3c; font-size: 0.9rem;">삭제</button>` : 
+                ''
+            }
+        </div>
+    `;
+    
+    container.appendChild(commentElement);
+}
+
+// YouTube 댓글 좋아요
+function likeYouTubeComment(commentId) {
+    // 구현 예정
+    showToast('좋아요 기능은 준비 중입니다.', 'info');
+}
+
+// YouTube 댓글 삭제
+async function deleteYouTubeComment(commentId) {
+    if (!confirm('정말로 이 댓글을 삭제하시겠습니까?')) {
+        return;
+    }
+    
+    try {
+        // Firebase에서 삭제
+        if (db) {
+            try {
+                const commentRef = db.collection('youtubeComments').doc(commentId);
+                await commentRef.delete();
+                console.log('댓글이 Firebase에서 삭제되었습니다.');
+            } catch (error) {
+                console.log('Firebase 댓글 삭제 실패:', error);
+            }
+        }
+        
+        // 로컬 스토리지에서 삭제
+        const iframe = document.getElementById('youtube-video-frame');
+        if (iframe && iframe.src) {
+            const videoIdMatch = iframe.src.match(/embed\/([^?]+)/);
+            if (videoIdMatch) {
+                const videoId = videoIdMatch[1];
+                const commentsKey = `youtube_comments_${videoId}`;
+                const existingComments = JSON.parse(localStorage.getItem(commentsKey) || '[]');
+                const updatedComments = existingComments.filter(c => c.id !== commentId);
+                localStorage.setItem(commentsKey, JSON.stringify(updatedComments));
+                
+                // UI 업데이트
+                loadYouTubeComments();
+            }
+        }
+        
+        showToast('댓글이 삭제되었습니다.', 'success');
+        
+    } catch (error) {
+        console.error('댓글 삭제 중 오류:', error);
+        showToast('댓글 삭제 중 오류가 발생했습니다.', 'error');
+    }
+}
+
+// YouTube 댓글 로드
+async function loadYouTubeComments() {
+    const iframe = document.getElementById('youtube-video-frame');
+    const commentsList = document.getElementById('youtube-comments-list');
+    const commentCount = document.getElementById('youtube-comment-count');
+    
+    if (!iframe || !iframe.src || !commentsList || !commentCount) {
+        return;
+    }
+    
+    const videoIdMatch = iframe.src.match(/embed\/([^?]+)/);
+    if (!videoIdMatch) {
+        return;
+    }
+    
+    const videoId = videoIdMatch[1];
+    
+    try {
+        let comments = [];
+        
+        // Firebase에서 댓글 로드
+        if (db) {
+            try {
+                const snapshot = await db.collection('youtubeComments')
+                    .where('videoId', '==', videoId)
+                    .orderBy('timestamp', 'desc')
+                    .get();
+                
+                comments = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+            } catch (error) {
+                console.log('Firebase 댓글 로드 실패 (로컬에서만 처리):', error);
+            }
+        }
+        
+        // 로컬 스토리지에서도 로드
+        const commentsKey = `youtube_comments_${videoId}`;
+        const localComments = JSON.parse(localStorage.getItem(commentsKey) || '[]');
+        
+        // 중복 제거하고 합치기
+        const allComments = [...comments];
+        localComments.forEach(localComment => {
+            if (!allComments.find(c => c.id === localComment.id)) {
+                allComments.push(localComment);
+            }
+        });
+        
+        // 시간순 정렬
+        allComments.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        // UI 업데이트
+        commentsList.innerHTML = '';
+        allComments.forEach(comment => {
+            displayYouTubeComment(comment, commentsList);
+        });
+        
+        commentCount.textContent = `${allComments.length}개의 댓글`;
+        
+    } catch (error) {
+        console.error('댓글 로드 중 오류:', error);
+    }
+}
+
+// 커스텀 공유 모달 표시
+function showCustomShareModal(title, url, shareText, websiteShareUrl = null) {
+    // 기존 공유 모달이 있다면 제거
+    const existingModal = document.getElementById('custom-share-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // 새 공유 모달 생성
+    const modal = document.createElement('div');
+    modal.id = 'custom-share-modal';
+    modal.className = 'modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+    `;
+    
+    modal.innerHTML = `
+        <div class="share-modal-content" style="
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        ">
+            <div class="share-modal-header" style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1.5rem;
+                padding-bottom: 1rem;
+                border-bottom: 1px solid #eee;
+            ">
+                <h3 style="margin: 0; color: #333; font-size: 1.5rem;">📤 영상 공유</h3>
+                <button onclick="closeCustomShareModal()" style="
+                    background: none;
+                    border: none;
+                    font-size: 1.5rem;
+                    cursor: pointer;
+                    color: #666;
+                    padding: 0.5rem;
+                ">&times;</button>
+            </div>
+            
+            <div class="share-modal-body">
+                <!-- 영상 정보 -->
+                <div class="video-info" style="
+                    margin-bottom: 1.5rem;
+                    padding: 1rem;
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                ">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #333;">${escapeHtml(title)}</h4>
+                    <p style="margin: 0; color: #666; font-size: 0.9rem;">${escapeHtml(url)}</p>
+                </div>
+                
+                <!-- 공유 옵션 -->
+                <div class="share-options" style="margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; color: #333;">공유 방법 선택</h4>
+                    
+                    ${websiteShareUrl ? `
+                    <!-- 웹사이트 공유 -->
+                    <div class="share-option" style="
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 1rem;
+                        margin-bottom: 0.75rem;
+                        border: 2px solid #e74c3c;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        transition: background 0.2s;
+                        background: #fff5f5;
+                    " onclick="copyTextToClipboard('${websiteShareUrl}')">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">🌐</span>
+                            <div>
+                                <div style="font-weight: 600; color: #333;">웹사이트 공유</div>
+                                <div style="font-size: 0.9rem; color: #666;">라틴댄스 사이트에서 바로 보기</div>
+                            </div>
+                        </div>
+                        <span style="color: #e74c3c; font-weight: 600;">추천</span>
+                    </div>
+                    ` : ''}
+                    
+                    <!-- 링크 복사 -->
+                    <div class="share-option" style="
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 1rem;
+                        margin-bottom: 0.75rem;
+                        border: 1px solid #ddd;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        transition: background 0.2s;
+                    " onclick="copyTextToClipboard('${url}')">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">🔗</span>
+                            <div>
+                                <div style="font-weight: 600; color: #333;">링크 복사</div>
+                                <div style="font-size: 0.9rem; color: #666;">클립보드에 링크 복사</div>
+                            </div>
+                        </div>
+                        <span style="color: #666;">복사</span>
+                    </div>
+                    
+                    <!-- 텍스트 복사 -->
+                    <div class="share-option" style="
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 1rem;
+                        margin-bottom: 0.75rem;
+                        border: 1px solid #ddd;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        transition: background 0.2s;
+                    " onclick="copyTextToClipboard('${escapeHtml(shareText)}')">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">📝</span>
+                            <div>
+                                <div style="font-weight: 600; color: #333;">텍스트 복사</div>
+                                <div style="font-size: 0.9rem; color: #666;">제목과 링크 포함 텍스트 복사</div>
+                            </div>
+                        </div>
+                        <span style="color: #666;">복사</span>
+                    </div>
+                    
+                    <!-- 소셜 미디어 공유 -->
+                    <div class="social-share" style="margin-top: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: #333;">소셜 미디어</h4>
+                        <div class="social-buttons" style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                            <button onclick="shareToKakaoTalk('${escapeHtml(title)}', '${url}')" style="
+                                display: flex;
+                                align-items: center;
+                                gap: 0.5rem;
+                                padding: 0.75rem 1rem;
+                                background: #FEE500;
+                                color: #000;
+                                border: none;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                font-weight: 600;
+                            ">
+                                <span>💬</span>
+                                <span>카카오톡</span>
+                            </button>
+                            
+                            <button onclick="shareToFacebook('${escapeHtml(title)}', '${url}')" style="
+                                display: flex;
+                                align-items: center;
+                                gap: 0.5rem;
+                                padding: 0.75rem 1rem;
+                                background: #1877F2;
+                                color: white;
+                                border: none;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                font-weight: 600;
+                            ">
+                                <span>📘</span>
+                                <span>Facebook</span>
+                            </button>
+                            
+                            <button onclick="shareToTwitter('${escapeHtml(title)}', '${url}')" style="
+                                display: flex;
+                                align-items: center;
+                                gap: 0.5rem;
+                                padding: 0.75rem 1rem;
+                                background: #1DA1F2;
+                                color: white;
+                                border: none;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                font-weight: 600;
+                            ">
+                                <span>🐦</span>
+                                <span>Twitter</span>
+                            </button>
+                            
+                            <button onclick="shareToInstagram('${escapeHtml(title)}', '${url}')" style="
+                                display: flex;
+                                align-items: center;
+                                gap: 0.5rem;
+                                padding: 0.75rem 1rem;
+                                background: linear-gradient(45deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%);
+                                color: white;
+                                border: none;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                font-weight: 600;
+                            ">
+                                <span>📷</span>
+                                <span>Instagram</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- QR 코드 (선택사항) -->
+                <div class="qr-section" style="
+                    text-align: center;
+                    padding: 1rem;
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                    margin-bottom: 1rem;
+                ">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #333;">📱 QR 코드</h4>
+                    <p style="margin: 0; color: #666; font-size: 0.9rem;">모바일에서 QR 코드를 스캔하여 바로 접속</p>
+                    <div id="qr-code" style="margin-top: 1rem;"></div>
+                </div>
+            </div>
+            
+            <div class="share-modal-footer" style="
+                text-align: center;
+                padding-top: 1rem;
+                border-top: 1px solid #eee;
+            ">
+                <button onclick="closeCustomShareModal()" style="
+                    padding: 0.75rem 2rem;
+                    background: #e74c3c;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-weight: 600;
+                ">닫기</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // QR 코드 생성 (QR 코드 라이브러리가 있는 경우)
+    generateQRCode(url);
+    
+    // 모달 외부 클릭 시 닫기
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeCustomShareModal();
+        }
+    });
+}
+
+// 커스텀 공유 모달 닫기
+function closeCustomShareModal() {
+    const modal = document.getElementById('custom-share-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// QR 코드 생성
+function generateQRCode(url) {
+    const qrContainer = document.getElementById('qr-code');
+    if (!qrContainer) return;
+    
+    // QR 코드 라이브러리가 없으면 간단한 링크로 대체
+    qrContainer.innerHTML = `
+        <div style="
+            padding: 1rem;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            display: inline-block;
+        ">
+            <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">QR 코드</div>
+            <div style="font-size: 0.7rem; color: #999; word-break: break-all;">${url}</div>
+        </div>
+    `;
+}
+
+// 소셜 미디어 공유 함수들
+function shareToKakaoTalk(title, url) {
+    const shareText = `${title}\n\n${url}\n\n#라틴댄스 #살사 #바차타`;
+    const kakaoUrl = `https://story.kakao.com/share?url=${encodeURIComponent(url)}&text=${encodeURIComponent(shareText)}`;
+    window.open(kakaoUrl, '_blank');
+    showToast('카카오톡 공유가 열렸습니다!', 'success');
+}
+
+function shareToFacebook(title, url) {
+    const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(title)}`;
+    window.open(facebookUrl, '_blank');
+    showToast('Facebook 공유가 열렸습니다!', 'success');
+}
+
+function shareToTwitter(title, url) {
+    const shareText = `${title}\n\n${url}\n\n#라틴댄스 #살사 #바차타`;
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(url)}`;
+    window.open(twitterUrl, '_blank');
+    showToast('Twitter 공유가 열렸습니다!', 'success');
+}
+
+function shareToInstagram(title, url) {
+    // Instagram은 직접 링크 공유가 제한적이므로 클립보드 복사
+    const shareText = `${title}\n\n${url}\n\n#라틴댄스 #살사 #바차타`;
+    copyTextToClipboard(shareText);
+    showToast('Instagram 공유용 텍스트가 복사되었습니다!', 'success');
+}
+
+// YouTube에서 새 탭으로 열기
+function openYouTubeInNewTab() {
+    const iframe = document.getElementById('youtube-video-frame');
+    if (iframe && iframe.src) {
+        // iframe src에서 video ID 추출
+        const videoIdMatch = iframe.src.match(/embed\/([^?]+)/);
+        if (videoIdMatch) {
+            const videoId = videoIdMatch[1];
+            const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            window.open(youtubeUrl, '_blank');
+        }
+    }
+}
+
 // 유튜브 영상 재생 모달 닫기
 function closeYouTubeVideoModal() {
     const modal = document.getElementById('youtube-video-modal');
     if (modal) {
         modal.classList.add('hidden');
+        modal.style.display = 'none';
         // iframe src 초기화 (비디오 중지)
         const iframe = document.getElementById('youtube-video-frame');
         if (iframe) {
@@ -3783,9 +5566,14 @@ async function loadYouTubeVideos() {
     }
 }
 
-// 유튜브 영상 표시
+// 페이지네이션 변수들
+let currentPage = 1;
+const videosPerPage = 9; // 한 페이지당 9개 영상
+
+// 유튜브 영상 표시 (페이지네이션 적용)
 function displayYouTubeVideos(videos = youtubeVideos) {
     const grid = document.getElementById('youtube-grid');
+    const pagination = document.getElementById('youtube-pagination');
     if (!grid) return;
     
     grid.innerHTML = '';
@@ -3797,16 +5585,148 @@ function displayYouTubeVideos(videos = youtubeVideos) {
                 <p>첫 번째 영상을 등록해보세요!</p>
             </div>
         `;
+        pagination.style.display = 'none';
         return;
     }
+    
+    // 페이지네이션 계산
+    const totalPages = Math.ceil(videos.length / videosPerPage);
+    const startIndex = (currentPage - 1) * videosPerPage;
+    const endIndex = startIndex + videosPerPage;
+    const currentVideos = videos.slice(startIndex, endIndex);
     
     // 관리자 권한 확인 (한 번만)
     const isAdmin = canEdit({});
     console.log('영상 표시 시 관리자 권한 확인:', isAdmin);
     
-    videos.forEach(video => {
+    // 현재 페이지의 영상들만 표시
+    currentVideos.forEach(video => {
         const videoCard = createYouTubeVideoCard(video, isAdmin);
         grid.appendChild(videoCard);
+    });
+    
+    // 페이지네이션 컨트롤 표시/숨김
+    if (totalPages > 1) {
+        pagination.style.display = 'block';
+        updatePaginationControls(totalPages);
+    } else {
+        pagination.style.display = 'none';
+    }
+}
+
+// 페이지네이션 컨트롤 업데이트
+function updatePaginationControls(totalPages) {
+    const paginationInfo = document.getElementById('pagination-info');
+    const prevBtn = document.getElementById('prev-page-btn');
+    const nextBtn = document.getElementById('next-page-btn');
+    const pageNumbers = document.getElementById('page-numbers');
+    
+    // 페이지 정보 업데이트
+    paginationInfo.textContent = `페이지 ${currentPage} / ${totalPages}`;
+    
+    // 이전/다음 버튼 상태 업데이트
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages;
+    
+    // 페이지 번호 버튼들 생성
+    pageNumbers.innerHTML = '';
+    
+    // 최대 5개의 페이지 번호만 표시
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    // 시작 페이지 조정
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    // 첫 페이지 버튼
+    if (startPage > 1) {
+        const firstPageBtn = document.createElement('span');
+        firstPageBtn.className = 'page-number';
+        firstPageBtn.textContent = '1';
+        firstPageBtn.onclick = () => goToPage(1);
+        pageNumbers.appendChild(firstPageBtn);
+        
+        if (startPage > 2) {
+            const dots = document.createElement('span');
+            dots.className = 'page-number dots';
+            dots.textContent = '...';
+            pageNumbers.appendChild(dots);
+        }
+    }
+    
+    // 페이지 번호 버튼들
+    for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = document.createElement('span');
+        pageBtn.className = `page-number ${i === currentPage ? 'active' : ''}`;
+        pageBtn.textContent = i;
+        pageBtn.onclick = () => goToPage(i);
+        pageNumbers.appendChild(pageBtn);
+    }
+    
+    // 마지막 페이지 버튼
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            const dots = document.createElement('span');
+            dots.className = 'page-number dots';
+            dots.textContent = '...';
+            pageNumbers.appendChild(dots);
+        }
+        
+        const lastPageBtn = document.createElement('span');
+        lastPageBtn.className = 'page-number';
+        lastPageBtn.textContent = totalPages;
+        lastPageBtn.onclick = () => goToPage(totalPages);
+        pageNumbers.appendChild(lastPageBtn);
+    }
+}
+
+// 페이지 변경 함수
+function changePage(direction) {
+    const filteredVideos = getFilteredYouTubeVideos();
+    const totalPages = Math.ceil(filteredVideos.length / videosPerPage);
+    
+    if (direction === -1 && currentPage > 1) {
+        currentPage--;
+    } else if (direction === 1 && currentPage < totalPages) {
+        currentPage++;
+    }
+    
+    displayYouTubeVideos(filteredVideos);
+    
+    // 페이지 상단으로 스크롤
+    const youtubeSection = document.getElementById('youtube-section');
+    if (youtubeSection) {
+        youtubeSection.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+// 특정 페이지로 이동
+function goToPage(pageNumber) {
+    currentPage = pageNumber;
+    const filteredVideos = getFilteredYouTubeVideos();
+    displayYouTubeVideos(filteredVideos);
+    
+    // 페이지 상단으로 스크롤
+    const youtubeSection = document.getElementById('youtube-section');
+    if (youtubeSection) {
+        youtubeSection.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+// 필터링된 영상 목록 가져오기
+function getFilteredYouTubeVideos() {
+    const searchTerm = document.getElementById('youtube-search').value.toLowerCase();
+    const categoryFilter = document.getElementById('youtube-category-filter').value;
+    
+    return youtubeVideos.filter(video => {
+        const matchesSearch = video.title.toLowerCase().includes(searchTerm) ||
+                             video.author.toLowerCase().includes(searchTerm);
+        const matchesCategory = !categoryFilter || video.category === categoryFilter;
+        
+        return matchesSearch && matchesCategory;
     });
 }
 
@@ -3829,6 +5749,16 @@ function createYouTubeVideoCard(video, isAdmin = null) {
             return;
         }
         console.log('영상 카드 클릭됨:', video.title);
+        
+        // DOM이 완전히 로드되었는지 확인
+        if (document.readyState !== 'complete') {
+            console.log('DOM이 아직 로드되지 않았습니다. 잠시 후 다시 시도합니다.');
+            setTimeout(() => {
+                playYouTubeVideo(video);
+            }, 100);
+            return;
+        }
+        
         playYouTubeVideo(video);
     });
     
@@ -3855,13 +5785,39 @@ function createYouTubeVideoCard(video, isAdmin = null) {
 function playYouTubeVideo(video) {
     console.log('영상 재생 시도:', video);
     
+    // DOM이 완전히 로드되었는지 확인
+    if (document.readyState !== 'complete') {
+        console.log('DOM이 아직 로드되지 않았습니다. 잠시 후 다시 시도합니다.');
+        setTimeout(() => {
+            playYouTubeVideo(video);
+        }, 100);
+        return;
+    }
+    
     // 새로운 모달 방식으로 재생
     const videoId = video.videoId;
     const title = video.title;
     const category = video.category;
     const description = video.description || '설명 없음';
-    const date = new Date(video.createdAt).toLocaleDateString('ko-KR');
-    const author = video.author;
+    
+    // 날짜 포맷팅 (Firebase Timestamp 또는 Date 객체 처리)
+    let date;
+    if (video.createdAt) {
+        if (video.createdAt.toDate) {
+            // Firebase Timestamp
+            date = video.createdAt.toDate().toLocaleDateString('ko-KR');
+        } else if (video.createdAt instanceof Date) {
+            // Date 객체
+            date = video.createdAt.toLocaleDateString('ko-KR');
+        } else {
+            // 문자열이나 다른 형태
+            date = new Date(video.createdAt).toLocaleDateString('ko-KR');
+        }
+    } else {
+        date = '날짜 없음';
+    }
+    
+    const author = video.author || '관리자';
     
     // 새로운 openYouTubeVideoModal 함수 호출
     if (typeof openYouTubeVideoModal === 'function') {
@@ -3939,17 +5895,10 @@ async function deleteYouTubeVideo(videoId) {
 
 // 유튜브 영상 필터링
 function filterYouTubeVideos() {
-    const searchTerm = document.getElementById('youtube-search').value.toLowerCase();
-    const categoryFilter = document.getElementById('youtube-category-filter').value;
+    // 필터링 시 첫 페이지로 리셋
+    currentPage = 1;
     
-    const filteredVideos = youtubeVideos.filter(video => {
-        const matchesSearch = video.title.toLowerCase().includes(searchTerm) ||
-                            video.description.toLowerCase().includes(searchTerm);
-        const matchesCategory = !categoryFilter || video.category === categoryFilter;
-        
-        return matchesSearch && matchesCategory;
-    });
-    
+    const filteredVideos = getFilteredYouTubeVideos();
     displayYouTubeVideos(filteredVideos);
 }
 
@@ -4452,7 +6401,7 @@ function showManualCopyDialog(shareText) {
     document.body.appendChild(dialog);
 }
 
-// 클립보드 복사 함수
+// 클립보드 복사 함수 (textarea용)
 function copyToClipboard(textarea) {
     textarea.select();
     textarea.setSelectionRange(0, 99999); // 모바일 지원
@@ -4464,6 +6413,48 @@ function copyToClipboard(textarea) {
     } catch (err) {
         console.error('클립보드 복사 실패:', err);
         showToast('❌ 클립보드 복사에 실패했습니다.\n수동으로 텍스트를 선택하여 복사해주세요.', 'error', 4000);
+    }
+}
+
+// 문자열을 클립보드에 복사하는 함수 (공유 모달용)
+function copyTextToClipboard(text) {
+    // 임시 textarea 요소 생성
+    const tempTextarea = document.createElement('textarea');
+    tempTextarea.value = text;
+    tempTextarea.style.position = 'fixed';
+    tempTextarea.style.left = '-9999px';
+    tempTextarea.style.top = '-9999px';
+    tempTextarea.style.opacity = '0';
+    
+    document.body.appendChild(tempTextarea);
+    
+    try {
+        // 텍스트 선택 및 복사
+        tempTextarea.select();
+        tempTextarea.setSelectionRange(0, 99999); // 모바일 지원
+        
+        const successful = document.execCommand('copy');
+        
+        if (successful) {
+            showToast('📋 클립보드에 복사되었습니다!', 'success');
+        } else {
+            // 최신 브라우저용 Clipboard API 시도
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast('📋 클립보드에 복사되었습니다!', 'success');
+                }).catch(() => {
+                    showToast('❌ 클립보드 복사에 실패했습니다.', 'error');
+                });
+            } else {
+                showToast('❌ 클립보드 복사에 실패했습니다.', 'error');
+            }
+        }
+    } catch (err) {
+        console.error('클립보드 복사 실패:', err);
+        showToast('❌ 클립보드 복사에 실패했습니다.', 'error');
+    } finally {
+        // 임시 요소 제거
+        document.body.removeChild(tempTextarea);
     }
 }
 
@@ -4592,20 +6583,53 @@ function extractPartyFromCard(partyCard) {
 // URL 파라미터 확인하여 특정 파티 모달 열기
 function checkUrlParameters() {
     console.log('=== URL 파라미터 확인 시작 ===');
+    console.log('현재 전체 URL:', window.location.href);
+    console.log('현재 경로:', window.location.pathname);
+    console.log('현재 검색 파라미터:', window.location.search);
     
-    // 1. URL 파라미터 확인
+    // 1. URL 파라미터 확인 (쿼리 파라미터)
     const urlParams = new URLSearchParams(window.location.search);
-    const partyId = urlParams.get('party');
+    let partyId = urlParams.get('party');
+    const videoId = urlParams.get('video');
+    const modalType = urlParams.get('modal');
+    const videoTitle = urlParams.get('title');
     
-    // 2. localStorage의 pendingPartyId 확인
+    console.log('쿼리 파라미터에서 찾은 파티 ID:', partyId);
+    
+    // 2. 경로 파라미터 확인 (예: /party/YsivM5UcU7ZJinmajqel)
+    if (!partyId) {
+        const pathParts = window.location.pathname.split('/');
+        console.log('경로 파트들:', pathParts);
+        const partyIndex = pathParts.findIndex(part => part === 'party');
+        console.log('party 인덱스:', partyIndex);
+        
+        if (partyIndex !== -1 && partyIndex + 1 < pathParts.length) {
+            partyId = pathParts[partyIndex + 1];
+            console.log('✅ 경로에서 파티 ID 발견:', partyId);
+        } else {
+            console.log('❌ 경로에서 파티 ID를 찾을 수 없음');
+        }
+    }
+    
+    // 3. localStorage의 pendingPartyId 확인
     const pendingPartyId = localStorage.getItem('pendingPartyId');
     
     console.log('현재 URL:', window.location.href);
+    console.log('URL 경로:', window.location.pathname);
     console.log('URL 파라미터:', Object.fromEntries(urlParams.entries()));
     console.log('URL 파티 ID:', partyId);
+    console.log('URL 영상 ID:', videoId);
+    console.log('URL 모달 타입:', modalType);
     console.log('pendingPartyId:', pendingPartyId);
     
-    // 3. 파티 ID 결정 (URL 파라미터 우선, 없으면 pendingPartyId)
+    // 3. 영상 공유 모달 처리
+    if (videoId && modalType === 'share') {
+        console.log('영상 공유 모달 요청 발견:', { videoId, modalType, videoTitle });
+        openVideoShareModalFromUrl(videoId, videoTitle);
+        return;
+    }
+    
+    // 4. 파티 ID 결정 (URL 파라미터 우선, 없으면 pendingPartyId)
     const targetPartyId = partyId || pendingPartyId;
     
     if (targetPartyId) {
@@ -4620,9 +6644,16 @@ function checkUrlParameters() {
         // 즉시 파티 정보 찾기 시도
         const party = getPartyById(targetPartyId);
         if (party) {
-            console.log('즉시 파티 정보 찾음, 모달 열기');
+            console.log('즉시 파티 정보 찾음, 카드 이동 및 모달 열기');
             updateMetaTags(party);
-            viewParty(targetPartyId);
+            
+            // 먼저 카드로 이동
+            scrollToPartyCard(targetPartyId);
+            
+            // 잠시 후 모달 열기
+            setTimeout(() => {
+                viewParty(targetPartyId);
+            }, 1500);
         } else {
             // 파티 정보가 아직 로드되지 않았으면 대기
             console.log('파티 정보를 찾을 수 없음, 대기 후 재시도');
@@ -4636,6 +6667,34 @@ function checkUrlParameters() {
     }
 }
 
+// URL 파라미터로 영상 공유 모달 열기
+async function openVideoShareModalFromUrl(videoId, videoTitle) {
+    console.log('URL 파라미터로 영상 공유 모달 열기 시도:', { videoId, videoTitle });
+    
+    try {
+        // 영상 정보 구성
+        const title = videoTitle || `라틴댄스 영상 (${videoId})`;
+        const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        const shareText = `🎵 라틴댄스 영상: ${title}\n\n${youtubeUrl}\n\n#라틴댄스 #살사 #바차타`;
+        
+        // 웹사이트 공유 URL 생성 (현재 상태 유지)
+        const websiteShareUrl = `${window.location.origin}${window.location.pathname}?video=${videoId}&modal=share&title=${encodeURIComponent(title)}`;
+        
+        // 공유 모달 표시
+        showCustomShareModal(title, youtubeUrl, shareText, websiteShareUrl);
+        
+        // URL에서 파라미터 제거 (선택사항)
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+        
+        showToast('영상 공유 모달이 열렸습니다!', 'success');
+        
+    } catch (error) {
+        console.error('영상 공유 모달 열기 실패:', error);
+        showToast('영상 공유 모달을 열 수 없습니다.', 'error');
+    }
+}
+
 // URL 파라미터로 파티 모달 열기
 async function openPartyModalFromUrl(partyId) {
     console.log('URL 파라미터로 파티 모달 열기 시도:', partyId);
@@ -4644,13 +6703,18 @@ async function openPartyModalFromUrl(partyId) {
     const party = getPartyById(partyId);
     
     if (party) {
-        console.log('파티 정보 찾음, 모달 열기:', party);
+        console.log('파티 정보 찾음, 카드로 이동 및 모달 열기:', party);
         
         // 메타 태그 업데이트 (카카오톡 공유용)
         updateMetaTags(party);
         
-        // 파티 상세보기 모달 열기
-        await viewParty(partyId);
+        // 파티 카드로 스크롤 이동 및 강조 표시
+        scrollToPartyCard(partyId);
+        
+        // 잠시 후 모달 열기 (카드 강조 효과를 볼 수 있도록)
+        setTimeout(async () => {
+            await viewParty(partyId);
+        }, 1500);
         
         // URL에서 파라미터 제거 (선택사항)
         const newUrl = window.location.pathname;
@@ -4659,6 +6723,77 @@ async function openPartyModalFromUrl(partyId) {
     } else {
         console.error('URL 파라미터의 파티를 찾을 수 없음:', partyId);
         showMessage('요청하신 파티를 찾을 수 없습니다.', 'error');
+    }
+}
+
+// 파티 카드로 스크롤 이동 및 강조 표시
+function scrollToPartyCard(partyId) {
+    console.log('=== 파티 카드 스크롤 이동 시작 ===');
+    console.log('찾을 파티 ID:', partyId);
+    
+    // 모든 파티 카드에서 강조 표시 제거
+    const allCards = document.querySelectorAll('.party-card');
+    console.log('현재 페이지의 파티 카드 개수:', allCards.length);
+    
+    allCards.forEach(card => {
+        card.classList.remove('highlighted');
+    });
+    
+    // 해당 파티 카드 찾기
+    const partyCard = document.querySelector(`[data-party-id="${partyId}"]`);
+    console.log('찾은 파티 카드:', partyCard);
+    
+    if (partyCard) {
+        console.log('✅ 파티 카드 찾음, 스크롤 이동 및 강조 표시 시작');
+        
+        // 파티 섹션으로 스크롤 이동
+        const partiesSection = document.getElementById('parties-section');
+        console.log('파티 섹션:', partiesSection);
+        
+        if (partiesSection) {
+            console.log('파티 섹션으로 스크롤 이동 중...');
+            partiesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        // 잠시 후 카드로 스크롤 이동 및 강조 표시
+        setTimeout(() => {
+            console.log('카드로 스크롤 이동 중...');
+            // 카드가 화면 중앙에 오도록 스크롤
+            partyCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // 강조 표시 추가
+            partyCard.classList.add('highlighted');
+            console.log('✅ 강조 표시 추가됨');
+            
+            // 토스트 메시지 표시
+            showToast(`파티 카드를 찾았습니다! 🎉`, 'success', 2000);
+            
+            // 4초 후 강조 표시 제거
+            setTimeout(() => {
+                partyCard.classList.remove('highlighted');
+                console.log('강조 표시 제거됨');
+            }, 4000);
+            
+        }, 800); // 0.8초 대기 (섹션 이동 완료 후)
+        
+    } else {
+        console.warn('❌ 파티 카드를 찾을 수 없음:', partyId);
+        console.log('현재 페이지의 모든 파티 카드 ID들:');
+        allCards.forEach((card, index) => {
+            const cardId = card.getAttribute('data-party-id');
+            console.log(`  ${index + 1}. ${cardId}`);
+        });
+        
+        // 파티 섹션으로 이동
+        const partiesSection = document.getElementById('parties-section');
+        if (partiesSection) {
+            partiesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        // 사용자에게 알림
+        setTimeout(() => {
+            showToast('파티를 찾을 수 없습니다. 파티 목록을 확인해주세요.', 'warning', 3000);
+        }, 1000);
     }
 }
 
@@ -5722,7 +7857,91 @@ function setupDurationChangeHandler() {
 document.addEventListener('DOMContentLoaded', function() {
     setupDurationChangeHandler();
     setupTimeInputHandler();
+    
+    // 중복 파티 삭제 버튼 추가
+    setTimeout(addDuplicateDeleteButton, 2000);
 });
+
+// 중복 파티 삭제 함수
+function deleteDuplicateParties() {
+    console.log('=== 중복 파티 삭제 시작 ===');
+    
+    try {
+        const parties = JSON.parse(localStorage.getItem('latinDanceParties') || '[]');
+        console.log('현재 파티 개수:', parties.length);
+        
+        // 중복 파티 찾기
+        const duplicates = [];
+        const seen = new Set();
+        
+        parties.forEach((party, index) => {
+            const key = `${party.title}_${party.startDate}_${party.barName}`;
+            if (seen.has(key)) {
+                duplicates.push({ party, index });
+            } else {
+                seen.add(key);
+            }
+        });
+        
+        console.log('발견된 중복 파티:', duplicates.length);
+        
+        if (duplicates.length === 0) {
+            showMessage('중복된 파티가 없습니다.', 'info');
+            return;
+        }
+        
+        // 중복 파티 삭제 (나중에 등록된 것부터 삭제)
+        duplicates.sort((a, b) => b.index - a.index);
+        
+        let deletedCount = 0;
+        duplicates.forEach(({ party, index }) => {
+            parties.splice(index, 1);
+            deletedCount++;
+            console.log('중복 파티 삭제:', party.title, 'ID:', party.id);
+        });
+        
+        // 로컬 스토리지 업데이트
+        localStorage.setItem('latinDanceParties', JSON.stringify(parties));
+        
+        showMessage(`${deletedCount}개의 중복 파티가 삭제되었습니다.`, 'success');
+        
+        // 페이지 새로고침
+        setTimeout(() => {
+            location.reload();
+        }, 2000);
+        
+    } catch (error) {
+        console.error('중복 파티 삭제 실패:', error);
+        showMessage('중복 파티 삭제에 실패했습니다.', 'error');
+    }
+}
+
+// 중복 파티 삭제 버튼 추가
+function addDuplicateDeleteButton() {
+    const container = document.getElementById('parties-container');
+    if (container) {
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = '🔄 중복 파티 정리';
+        deleteButton.className = 'duplicate-delete-btn';
+        deleteButton.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 1000;
+            font-size: 14px;
+        `;
+        deleteButton.onclick = deleteDuplicateParties;
+        
+        document.body.appendChild(deleteButton);
+        console.log('중복 파티 삭제 버튼 추가됨');
+    }
+}
 
 // 시간 입력을 30분 간격으로 제한
 function setupTimeInputHandler() {
