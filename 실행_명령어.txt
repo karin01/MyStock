@@ -1,0 +1,56 @@
+========================================
+  주식 뷰어 - 적용할 명령어 정리
+========================================
+
+[폴더 경로]
+G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock
+
+
+[1] 최초 1회만 - 패키지 설치
+---------------------------
+cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
+pip install -r requirements.txt
+
+(웹 UI까지 쓸 경우)
+pip install streamlit
+
+
+[2] 명령줄에서 주식 조회
+---------------------------
+cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
+python stock_viewer.py 삼성전자
+python stock_viewer.py 네이버 1y
+python stock_viewer.py AAPL
+
+※ 회사명(한글) 또는 티커 입력 가능: 삼성전자, 네이버, 카카오, 애플 등
+※ 기간: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y (생략 시 1y)
+
+
+[3] 국내 코스피 ETF 목록 보기
+---------------------------
+cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
+python list_etfs.py
+python list_etfs.py 200
+python list_etfs.py KODEX
+
+※ 필터: 200(코스피200), KODEX, TIGER 등
+
+
+[4] 웹 UI 실행 (브라우저에서 조회)
+---------------------------
+cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
+streamlit run app_streamlit.py
+
+※ 브라우저가 자동으로 열리면 티커 입력 후 조회
+
+
+========================================
+  API/데이터 출처 (다중 API)
+========================================
+1. yfinance (Yahoo) - 기본, API 키 불필요
+2. pykrx (KRX) - 한국 주식/ETF, API 키 불필요
+3. FinanceDataReader - 한국 주식, API 키 불필요
+4. Alpha Vantage - 선택 (ALPHAVANTAGE_API_KEY)
+5. Finnhub - 선택 (FINNHUB_API_KEY)
+
+※ API_설정_안내.md 참고
