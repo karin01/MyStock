@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="note-meta">작성자: ${note.uploader || '익명'} | 태그: ${note.tags ? note.tags.join(', ') : ''} <br>업로드: ${note.uploaded_at ? note.uploaded_at.split('T')[0] : ''}</div>
             <div class="note-actions">
                 ${isPdf ? '<button class="view-pdf">공부하기</button>' : ''}
+                ${isPdf ? '<button class="summarize-pdf">정리하기</button>' : ''}
                 <button class="download">다운로드</button>
                 <button class="generate-question">질문 생성</button>
                 <button class="delete">삭제</button>
@@ -138,6 +139,33 @@ document.addEventListener('DOMContentLoaded', () => {
             if (viewPdfBtn && fileUrl && filename && filename.toLowerCase().endsWith('.pdf')) {
                 viewPdfBtn.onclick = () => {
                     window.open(fileUrl, '_blank');
+                };
+            }
+
+            // PDF 정리하기 버튼
+            const summarizeBtn = card.querySelector('.summarize-pdf');
+            if (summarizeBtn) {
+                summarizeBtn.onclick = async () => {
+                    summarizeBtn.textContent = '정리 중...';
+                    try {
+                        const res = await fetch(`${API_BASE}/summarize-pdf`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ note_id: noteId })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            // 팝업(모달)에 요약 결과 표시
+                            document.getElementById('questionResult').innerText = data.summary;
+                            document.getElementById('questionModal').style.display = 'flex';
+                        } else {
+                            alert(data.error || '정리 실패');
+                        }
+                    } catch (err) {
+                        alert('네트워크 오류');
+                    } finally {
+                        summarizeBtn.textContent = '정리하기';
+                    }
                 };
             }
         });
@@ -293,5 +321,109 @@ document.addEventListener('DOMContentLoaded', () => {
                 adminMenuMsg.textContent = '네트워크 오류';
             }
         };
+    }
+
+    // 관리자 비밀번호 변경 기능
+    const adminChangePwBtn = document.getElementById('adminChangePwBtn');
+    const adminChangePwModal = document.getElementById('adminChangePwModal');
+    const adminNewPwInput = document.getElementById('adminNewPwInput');
+    const adminChangePwSubmit = document.getElementById('adminChangePwSubmit');
+    const adminChangePwCancel = document.getElementById('adminChangePwCancel');
+    const adminChangePwMsg = document.getElementById('adminChangePwMsg');
+    const adminNotesList = document.getElementById('adminNotesList');
+
+    if (adminChangePwBtn) {
+        adminChangePwBtn.onclick = function() {
+            adminChangePwModal.style.display = 'flex';
+            adminNewPwInput.value = '';
+            adminChangePwMsg.textContent = '';
+        };
+    }
+    if (adminChangePwCancel) {
+        adminChangePwCancel.onclick = function() {
+            adminChangePwModal.style.display = 'none';
+        };
+    }
+    if (adminChangePwSubmit) {
+        adminChangePwSubmit.onclick = async function() {
+            const newPw = adminNewPwInput.value;
+            if (!newPw || newPw.length < 4) {
+                adminChangePwMsg.textContent = '4자 이상 입력하세요.';
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/admin/change-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+                    body: JSON.stringify({ new_password: newPw })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    adminChangePwMsg.textContent = '비밀번호 변경 성공!';
+                    setTimeout(() => { adminChangePwModal.style.display = 'none'; }, 1200);
+                } else {
+                    adminChangePwMsg.textContent = data.error || '변경 실패';
+                }
+            } catch (err) {
+                adminChangePwMsg.textContent = '네트워크 오류';
+            }
+        };
+    }
+
+    // 관리자 노트 목록 및 개별 삭제
+    async function loadAdminNotes() {
+        if (!adminNotesList) return;
+        adminNotesList.innerHTML = '불러오는 중...';
+        try {
+            const res = await fetch(`${API_BASE}/notes`);
+            const data = await res.json();
+            if (res.ok && data.notes) {
+                if (data.notes.length === 0) {
+                    adminNotesList.innerHTML = '<div style="color:#888;">노트가 없습니다.</div>';
+                    return;
+                }
+                adminNotesList.innerHTML = data.notes.map(note => `
+                    <div style="display:flex; align-items:center; margin-bottom:6px;">
+                        <span style="flex:1; font-size:14px;">${note.title} (${note.filename})</span>
+                        <button class="admin-delete-note" data-id="${note.id}" style="background:#e57373; color:#fff; border:none; border-radius:4px; padding:2px 10px; margin-left:8px; font-size:13px;">삭제</button>
+                    </div>
+                `).join('');
+                // 삭제 버튼 이벤트 바인딩
+                adminNotesList.querySelectorAll('.admin-delete-note').forEach(btn => {
+                    btn.onclick = async function() {
+                        if (!confirm('정말 이 노트를 삭제하시겠습니까?')) return;
+                        const noteId = btn.getAttribute('data-id');
+                        try {
+                            const res = await fetch(`${API_BASE}/admin/delete-note/${noteId}`, {
+                                method: 'DELETE',
+                                headers: { 'Authorization': `Bearer ${adminToken}` }
+                            });
+                            const data = await res.json();
+                            if (res.ok) {
+                                btn.parentElement.remove();
+                            } else {
+                                alert(data.error || '삭제 실패');
+                            }
+                        } catch (err) {
+                            alert('네트워크 오류');
+                        }
+                    };
+                });
+            } else {
+                adminNotesList.innerHTML = '<div style="color:#e57373;">노트 목록 불러오기 실패</div>';
+            }
+        } catch (err) {
+            adminNotesList.innerHTML = '<div style="color:#e57373;">네트워크 오류</div>';
+        }
+    }
+    // 관리자 메뉴 진입 시 노트 목록 불러오기
+    if (adminMenuModal) {
+        const origShow = adminMenuModal.style.display;
+        const observer = new MutationObserver(() => {
+            if (adminMenuModal.style.display === 'flex') {
+                loadAdminNotes();
+            }
+        });
+        observer.observe(adminMenuModal, { attributes: true, attributeFilter: ['style'] });
     }
 });

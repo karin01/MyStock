@@ -1,0 +1,5 @@
+# 보유 종목 데이터 (개인 정보)
+portfolio_holdings.json
+
+# 로그인 사용자 정보 (비밀번호 해시 포함)
+users.json

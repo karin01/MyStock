@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>라틴댄스 파티 홍보</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+    <!-- 헤더 -->
+    <header>
+        <div class="login-container">
+            <span id="user-name" class="user-name hidden"></span>
+            <button class="login-btn">로그인</button>
+        </div>
+        <h1>🕺💃 라틴댄스 파티 홍보</h1>
+        <p>당신의 라틴댄스 파티를 홍보하고 공유하세요!</p>
+        
+        <!-- 타이틀 아래 버튼들 -->
+        <div class="title-buttons">
+            <button class="title-btn" onclick="scrollToSection('party-registration')">파티 등록하기</button>
+            <button class="title-btn" onclick="scrollToSection('party-list')">홍보 앨범 보기</button>
+            <button class="title-btn" onclick="scrollToSection('youtube-section')">라틴 강습 유튜브</button>
+        </div>
+    </header>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="section-container">
+        <!-- 파티 등록 섹션 -->
+        <section id="party-registration" class="content-section">
+            <h2>파티 등록하기</h2>
+            <form id="party-form">
+                <div class="form-group">
+                    <label for="party-title">파티 제목:</label>
+                    <input type="text" id="party-title" required placeholder="예: 살사 파티 - 열정의 밤">
+                </div>
+
+                <div class="form-group">
+                    <label for="party-region">지역:</label>
+                    <select id="party-region" required>
+                        <option value="">지역을 선택하세요</option>
+                        <option value="서울">서울</option>
+                        <option value="부산">부산</option>
+                        <option value="대구">대구</option>
+                        <option value="인천">인천</option>
+                        <option value="광주">광주</option>
+                        <option value="대전">대전</option>
+                        <option value="울산">울산</option>
+                        <option value="경기">경기</option>
+                        <option value="강원">강원</option>
+                        <option value="충북">충북</option>
+                        <option value="충남">충남</option>
+                        <option value="전북">전북</option>
+                        <option value="전남">전남</option>
+                        <option value="경북">경북</option>
+                        <option value="경남">경남</option>
+                        <option value="제주">제주</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="party-location">빠 이름:</label>
+                    <div class="location-input-container">
+                        <input type="text" id="party-location" required placeholder="빠 이름을 입력하세요 (자동완성 지원)">
+                        <button type="button" id="map-btn" class="map-btn" onclick="openLocationMap()" style="display: none;">🗺️ 지도 보기</button>
+                    </div>
+                    <div id="location-suggestions" class="location-suggestions"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="party-address">상세주소:</label>
+                    <input type="text" id="party-address" placeholder="자동으로 채워집니다">
+                </div>
+
+                <div class="form-group form-row">
+                    <div class="form-half">
+                        <label for="party-date">날짜:</label>
+                        <input type="date" id="party-date" required>
+                    </div>
+                    <div class="form-half">
+                        <label for="party-time">시간:</label>
+                        <input type="time" id="party-time" step="1800" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="party-description">상세 설명:</label>
+                    <textarea id="party-description" rows="4" placeholder="파티에 대한 자세한 설명을 입력하세요..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="party-contact">연락처:</label>
+                    <input type="text" id="party-contact" placeholder="연락처 (선택사항)">
+                </div>
+
+                <div class="form-group">
+                    <label for="party-poster">파티 포스터:</label>
+                    <input type="file" id="party-poster" accept="image/*">
+                    <div id="poster-preview"></div>
+                </div>
+
+                <button type="submit" id="submit-btn">파티 등록하기</button>
+                <button type="button" id="cancel-edit-btn" class="cancel-btn hidden">편집 취소</button>
+            </form>
+        </section>
+
+        <!-- 파티 목록 섹션 (홍보 앨범) -->
+        <section id="party-list" class="content-section">
+            <h2>🎉 홍보 앨범</h2>
+            
+            <!-- 앨범 관리 버튼 -->
+            <div class="album-controls">
+                <button class="album-btn active" onclick="showUpcomingParties()">📚 예정된 앨범</button>
+                <button class="album-btn" onclick="showPastParties()">📅 지난 앨범</button>
+            </div>
+            
+            <div class="filter-container">
+                <select id="region-filter">
+                    <option value="">모든 지역</option>
+                    <option value="서울">서울</option>
+                    <option value="부산">부산</option>
+                    <option value="대구">대구</option>
+                    <option value="인천">인천</option>
+                    <option value="광주">광주</option>
+                    <option value="대전">대전</option>
+                    <option value="울산">울산</option>
+                    <option value="경기">경기</option>
+                    <option value="강원">강원</option>
+                    <option value="충북">충북</option>
+                    <option value="충남">충남</option>
+                    <option value="전북">전북</option>
+                    <option value="전남">전남</option>
+                    <option value="경북">경북</option>
+                    <option value="경남">경남</option>
+                    <option value="제주">제주</option>
+                </select>
+                <input type="date" id="date-filter" placeholder="날짜 필터">
+            </div>
+            <div id="parties-container">
+                <!-- 파티 목록이 여기에 동적으로 추가됩니다 -->
+            </div>
+        </section>
+
+        <!-- 유튜브 섹션 -->
+        <section id="youtube-section" class="youtube-section content-section">
+            <h2>🎵 라틴 댄스 유튜브</h2>
+            <p style="text-align: center; margin-bottom: 2rem; color: #666;">
+                라틴댄스 학습과 영감을 위한 추천 영상들을 확인해보세요!
+            </p>
+            <div class="filter-container">
+                <select id="uploader-filter">
+                    <option value="">모든 업로더</option>
+                    <option value="Passion4dancing">Passion4dancing</option>
+                    <option value="성표&까티아">성표&까티아</option>
+                    <option value="TWS-라틴댄스티비 LatinDanceTV">TWS-라틴댄스티비 LatinDanceTV</option>
+                    <option value="Marco y Sara Bachata">Marco y Sara Bachata</option>
+                    <option value="phothomas">phothomas</option>
+                </select>
+            </div>
+            <div class="youtube-grid" id="youtube-container">
+                <!-- 유튜브 영상들이 여기에 동적으로 추가됩니다 -->
+            </div>
+        </section>
+    </main>
+
+    <!-- 파티 상세 모달 -->
+    <div id="party-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-party-title"></h3>
+                <button class="close-btn" onclick="closePartyModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-party-info"></div>
+                
+                <!-- 갤러리 섹션 -->
+                <div class="gallery-section">
+                    <h4>파티 갤러리</h4>
+                    <div class="gallery-upload">
+                        <!-- 파일 업로드 input은 숨기고, 라벨 클릭 시 파일 선택창이 뜨도록 처리 -->
+                        <label for="gallery-image" class="upload-label">
+                            <span class="upload-icon" style="font-size:2rem; margin-right:8px;">🗓️</span>
+                            <span class="upload-text">사진 추가</span>
+                            <input type="file" id="gallery-image" accept="image/*" multiple style="display:none;">
+                        </label>
+                    </div>
+                    <div id="gallery-container"></div>
+                </div>
+                
+                <!-- 댓글 섹션 -->
+                <div class="comments-section">
+                    <h4>댓글</h4>
+                    <div class="comment-form">
+                        <input type="text" id="comment-author" placeholder="이름 (선택사항)">
+                        <textarea id="comment-text" placeholder="댓글을 입력하세요..."></textarea>
+                        <button onclick="addNewComment()">댓글 작성</button>
+                    </div>
+                    <div id="comments-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 이미지 확대 모달 -->
+    <div id="image-modal" class="modal hidden">
+        <div class="modal-content image-modal-content">
+            <button class="close-btn" onclick="closeImageModal()">&times;</button>
+            <img id="modal-image" src="" alt="확대 이미지">
+        </div>
+    </div>
+
+    <!-- 유튜브 영상 모달 -->
+    <div id="youtube-modal" class="modal hidden">
+        <div class="modal-content youtube-modal-content">
+            <div class="modal-header">
+                <h3 id="youtube-modal-title"></h3>
+                <button class="close-btn" onclick="closeYouTubeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="youtube-video-container">
+                    <iframe id="youtube-iframe" 
+                            width="100%" 
+                            height="400" 
+                            frameborder="0" 
+                            allowfullscreen>
+                    </iframe>
+                </div>
+                <div class="youtube-video-info">
+                    <h4 id="youtube-video-title"></h4>
+                    <p id="youtube-video-channel"></p>
+                    <p id="youtube-video-description"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 로딩 표시 -->
+    <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <p>로딩 중...</p>
+    </div>
+
+    <!-- 로그인 모달 -->
+    <div id="login-modal" class="modal hidden">
+      <div class="modal-content" style="max-width:360px;text-align:center;">
+        <div class="modal-header">
+          <h3>로그인</h3>
+          <button class="close-btn" onclick="closeLoginModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <button id="google-login-btn" onclick="googleLogin()">구글로 로그인</button>
+        </div>
+      </div>
+    </div>
+    <!-- 로그인/로그아웃 토글 버튼 (헤더 우측) -->
+    <!-- 로그인/로그아웃 토글 버튼 (헤더 우측) -->
+
+    <!-- Firebase SDK -->
+    <!-- Firebase App (compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <!-- Firebase Firestore (compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <!-- Firebase Storage (compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <!-- Firebase Auth (compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <!-- Firebase 설정 정보 -->
+    <script src="js/firebase-config.js"></script>
+    <!-- 라틴바 데이터 관리자 -->
+    <script src="js/latin-bars-manager.js"></script>
+    <!-- 메인 기능 JS -->
+    <script src="js/main.js"></script>
+</body>
+<!-- 구글맵 JS API -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANAoSBtvO4yUBQi-ljSzK-d0IYSMSbACA&libraries=places"></script>
+<script src="/js/googlemap-init.js"></script>
+</html> 

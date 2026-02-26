@@ -1,0 +1,21 @@
+# 주식 뷰어 필수 패키지
+# 설치: pip install -r requirements.txt
+
+# 기본 (API 키 불필요)
+yfinance>=0.2.36
+pandas>=2.0.0
+matplotlib>=3.7.0
+
+# 한국 주식/ETF (KRX, 네이버 - API 키 불필요)
+pykrx>=1.0.0
+finance-datareader>=0.9.0
+
+# 선택: API 키 설정 시 추가 데이터 소스
+# pip install alpha-vantage requests
+# ALPHAVANTAGE_API_KEY, FINNHUB_API_KEY 환경변수 설정
+
+# 웹 UI 사용 시
+streamlit>=1.35.0  # st.fragment(run_every=...), st.dataframe(on_select=...) 용
+
+# 주식 AI 채팅 (OPENAI_API_KEY 환경변수 또는 .streamlit/secrets.toml)
+openai>=1.0.0

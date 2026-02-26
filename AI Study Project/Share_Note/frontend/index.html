@@ -33,6 +33,18 @@
             <h3 style="margin-top:0;">관리자 메뉴</h3>
             <button id="deleteAllNotesBtn" style="background:#e57373; color:#fff; width:100%; margin-bottom:12px;">전체 노트 삭제</button>
             <button id="resetDbBtn" style="background:#e57373; color:#fff; width:100%;">DB 초기화</button>
+            <button id="adminChangePwBtn" style="margin-bottom:12px;">비밀번호 변경</button>
+            <div id="adminNotesList" style="margin-bottom:18px;"></div>
+            <!-- 비밀번호 변경 모달 -->
+            <div id="adminChangePwModal" class="modal" style="display:none; position:fixed; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.3); z-index:2100; justify-content:center; align-items:center;">
+              <div style="background:#fff; border-radius:12px; padding:28px 24px; max-width:340px; width:90vw; box-shadow:0 4px 24px rgba(80,120,200,0.18); position:relative;">
+                <h3 style="margin-top:0;">관리자 비밀번호 변경</h3>
+                <input id="adminNewPwInput" type="password" placeholder="새 비밀번호" style="width:100%; padding:8px; margin-bottom:12px;">
+                <div id="adminChangePwMsg" style="color:#e57373; min-height:20px; margin-bottom:8px;"></div>
+                <button id="adminChangePwSubmit" style="background:#1976d2; color:#fff; border:none; border-radius:6px; padding:8px 18px; margin-right:8px;">변경</button>
+                <button id="adminChangePwCancel" style="background:#e57373; color:#fff; border:none; border-radius:6px; padding:8px 18px;">취소</button>
+              </div>
+            </div>
             <div style="text-align:right; margin-top:18px;">
               <button id="adminMenuCloseBtn">닫기</button>
             </div>
