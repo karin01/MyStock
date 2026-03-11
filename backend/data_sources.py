@@ -48,33 +48,45 @@ def is_korean_ticker(ticker: str) -> bool:
     return t.endswith((".KS", ".KQ")) or (len(t) == 6 and t.isdigit())
 
 
+# --- 재시도 유틸 ---
+def _retry_once(func, *args, **kwargs):
+    """실패 시 1회 재시도 (일시적 오류 완화)"""
+    try:
+        return func(*args, **kwargs)
+    except Exception:
+        import time
+        time.sleep(0.5)
+        return func(*args, **kwargs)
+
+
 # --- yfinance ---
 def _fetch_yfinance_info(ticker: str) -> dict | None:
-    try:
-        import yfinance as yf
-
-        t = yf.Ticker(ticker)
-        info = t.info
-        if not info or info.get("regularMarketPrice") is None and info.get("currentPrice") is None:
+    def _do():
+        try:
+            import yfinance as yf
+            t = yf.Ticker(ticker)
+            info = t.info
+            if not info or info.get("regularMarketPrice") is None and info.get("currentPrice") is None:
+                return None
+            currency_code = info.get("currency") or "USD"
+            currency_label = "달러(USD)" if currency_code == "USD" else "원(KRW)" if currency_code == "KRW" else currency_code
+            return {
+                "ticker": ticker,
+                "name": info.get("shortName") or info.get("longName") or ticker,
+                "current_price": info.get("currentPrice") or info.get("regularMarketPrice"),
+                "previous_close": info.get("previousClose"),
+                "market_cap": info.get("marketCap"),
+                "pe_ratio": info.get("trailingPE"),
+                "forward_pe": info.get("forwardPE"),
+                "dividend_yield": info.get("dividendYield"),
+                "sector": info.get("sector"),
+                "industry": info.get("industry"),
+                "currency": currency_code,
+                "currency_label": currency_label,
+            }
+        except Exception:
             return None
-        currency_code = info.get("currency") or "USD"
-        currency_label = "달러(USD)" if currency_code == "USD" else "원(KRW)" if currency_code == "KRW" else currency_code
-        return {
-            "ticker": ticker,
-            "name": info.get("shortName") or info.get("longName") or ticker,
-            "current_price": info.get("currentPrice") or info.get("regularMarketPrice"),
-            "previous_close": info.get("previousClose"),
-            "market_cap": info.get("marketCap"),
-            "pe_ratio": info.get("trailingPE"),
-            "forward_pe": info.get("forwardPE"),
-            "dividend_yield": info.get("dividendYield"),
-            "sector": info.get("sector"),
-            "industry": info.get("industry"),
-            "currency": currency_code,
-            "currency_label": currency_label,
-        }
-    except Exception:
-        return None
+    return _retry_once(_do)
 
 
 def _fetch_yfinance_history(ticker: str, period: str) -> pd.DataFrame | None:
@@ -259,11 +271,15 @@ def _fetch_finnhub_info(ticker: str) -> dict | None:
 
 # --- 통합 함수 ---
 def get_stock_info(ticker: str) -> dict | None:
-    """여러 API를 시도해 주식 정보 반환"""
+    """여러 API를 시도해 주식 정보 반환. 미국 티커는 통화를 항상 USD로 고정."""
     ticker = str(ticker).strip().upper()
-    # 1) yfinance
+    # 1) yfinance (한국 로케일 등에서 미국 주식에 KRW가 올 수 있음 → 티커로 통화 강제)
     info = _fetch_yfinance_info(ticker)
     if info:
+        # 미국 주식(.KS/.KQ 아닌 것)은 현재가 통화를 항상 달러로 고정
+        if not is_korean_ticker(ticker):
+            info["currency"] = "USD"
+            info["currency_label"] = "달러(USD)"
         return info
     # 2) 한국 종목: pykrx
     if is_korean_ticker(ticker):
@@ -273,6 +289,9 @@ def get_stock_info(ticker: str) -> dict | None:
     # 3) Finnhub (API 키 있을 때)
     info = _fetch_finnhub_info(ticker)
     if info:
+        if not is_korean_ticker(ticker):
+            info["currency"] = "USD"
+            info["currency_label"] = "달러(USD)"
         return info
     return None
 

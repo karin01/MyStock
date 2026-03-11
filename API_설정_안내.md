@@ -28,6 +28,17 @@ set ALPHAVANTAGE_API_KEY=여기에키입력
 set FINNHUB_API_KEY=여기에키입력
 ```
 
+### Firebase (ID/PW Firestore 저장)
+- Firebase Console에서 프로젝트 생성 → Firestore 활성화
+- 프로젝트 설정 → 서비스 계정 → 새 비공개 키 생성
+- 생성된 JSON 파일 경로를 설정:
+```bash
+set FIREBASE_CREDENTIALS_PATH=경로/서비스계정키.json
+```
+- 또는 `.streamlit/secrets.toml`에 `firebase_credentials_path = "경로"` 추가
+- Firestore `users` 컬렉션에 사용자 정보 저장됨
+- Firebase 미설정 시 로컬 `users.json` 사용
+
 ## 설치
 
 ```bash

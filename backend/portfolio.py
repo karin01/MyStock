@@ -11,7 +11,7 @@ from pathlib import Path
 
 # 보유 내역 저장 파일 (Stock 폴더 내)
 # 형식: { "user_id": [ {...}, {...} ], ... }
-_PORTFOLIO_FILE = Path(__file__).parent / "portfolio_holdings.json"
+_PORTFOLIO_FILE = Path(__file__).parent.parent / "portfolio_holdings.json"
 
 
 def _load_all() -> dict:
@@ -137,8 +137,13 @@ def get_holdings_with_profit_loss(
     for t, agg in 티커별.items():
         현재가 = None
         통화표시 = "—"
+        이름 = t
         try:
-            현재가, 통화표시 = get_price_and_currency_func(t)
+            결과_튜플 = get_price_and_currency_func(t)
+            if len(결과_튜플) == 3:
+                현재가, 통화표시, 이름 = 결과_튜플
+            elif len(결과_튜플) == 2:
+                현재가, 통화표시 = 결과_튜플
         except Exception:
             pass
         매수평균 = agg["total_cost"] / agg["quantity"] if agg["quantity"] else 0
@@ -168,6 +173,7 @@ def get_holdings_with_profit_loss(
             "profit_loss": 손익,
             "profit_loss_pct": 손익률,
             "currency_label": 통화표시,
+            "name": 이름,
             "ids": agg["ids"],
         })
     return 결과

@@ -36,12 +36,27 @@ python list_etfs.py KODEX
 ※ 필터: 200(코스피200), KODEX, TIGER 등
 
 
-[4] 웹 UI 실행 (브라우저에서 조회)
+[4] 기존 Streamlit 기반 뷰어 (느림)
 ---------------------------
 cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
-streamlit run app_streamlit.py
+streamlit run frontend/app_streamlit.py
 
 ※ 브라우저가 자동으로 열리면 티커 입력 후 조회
+
+
+[5] 🚀 새로운 초고속 웹 뷰어 실행 (FastAPI + JS)
+---------------------------
+터미널을 **2개** 열어야 합니다.
+
+첫 번째 터미널 (백엔드 API 서버 실행):
+cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
+python backend/main.py
+
+두 번째 터미널 (프론트엔드 웹 서버 실행):
+cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock\frontend"
+python -m http.server 8080
+
+※ 실행 후 웹 브라우저에서 http://localhost:8080 에 접속하세요.
 
 
 ========================================
