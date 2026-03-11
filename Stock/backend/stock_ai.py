@@ -9,10 +9,10 @@ import os
 import re
 from typing import Optional
 
-from stock_viewer import resolve_to_ticker, COMPANY_NAME_TO_TICKER
-from data_sources import get_stock_info, fetch_history, get_etf_holdings
-from chart_analysis import analyze_chart
-from list_etfs import get_recommended_etfs
+from backend.stock_viewer import resolve_to_ticker, COMPANY_NAME_TO_TICKER
+from backend.data_sources import get_stock_info, fetch_history, get_etf_holdings
+from backend.chart_analysis import analyze_chart
+from backend.list_etfs import get_recommended_etfs
 
 
 def _메시지에서_종목_추출(메시지: str) -> list[tuple[str, str]]:

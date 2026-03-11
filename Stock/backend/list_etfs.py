@@ -24,15 +24,29 @@ def get_etf_list(날짜: str | None = None) -> list[tuple[str, str]]:
         return []
 
     날짜 = 날짜 or datetime.now().strftime("%Y%m%d")
-    티커목록 = stock.get_etf_ticker_list(날짜)
-    if not 티커목록:
-        # 최근 영업일로 재시도
-        from datetime import timedelta
-        for d in range(1, 10):
-            이전일 = (datetime.now() - timedelta(days=d)).strftime("%Y%m%d")
-            티커목록 = stock.get_etf_ticker_list(이전일)
-            if 티커목록:
-                break
+    티커목록 = []
+    try:
+        티커목록 = stock.get_etf_ticker_list(날짜)
+        if not 티커목록:
+            # 최근 영업일로 재시도
+            from datetime import timedelta
+            for d in range(1, 10):
+                이전일 = (datetime.now() - timedelta(days=d)).strftime("%Y%m%d")
+                티커목록 = stock.get_etf_ticker_list(이전일)
+                if 티커목록:
+                    break
+    except Exception as e:
+        print(f"pykrx ETF 목록 조회 에러(라이브러리 버그 등): {e}")
+        # pykrx의 내부구조 변경 (예: KeyError: '시장') 등으로 실패할 경우 기본 우량 ETF 하드코딩 반환
+        return [
+            ("069500", "KODEX 200"), 
+            ("379800", "KODEX 미국S&P500TR"), 
+            ("305540", "TIGER 미국나스닥100"), 
+            ("091160", "KODEX 반도체"), 
+            ("102110", "TIGER 200"),
+            ("122630", "KODEX 레버리지")
+        ]
+        
     결과 = []
     for 티커 in 티커목록:
         try:
@@ -110,8 +124,8 @@ def get_recommended_etfs(limit: int = 20) -> list[tuple[str, str]]:
     거래대금 상위 ETF 중 '매수 적합'으로 판단된 것만 반환: [(티커, 종목명), ...]
     """
     try:
-        from data_sources import fetch_history
-        from chart_analysis import analyze_chart
+        from backend.data_sources import fetch_history
+        from backend.chart_analysis import analyze_chart
     except ImportError:
         return []
 

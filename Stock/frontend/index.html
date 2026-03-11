@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 정보·차트 뷰어</title>
+    <meta name="description" content="시장 지표부터 개별 종목 분석, 포트폴리오 관리까지">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div id="app-container">
+
+    <!-- 헤더 영역 -->
+    <header class="hero">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+            <div>
+                <h1 class="hero-title">주식 정보·차트 뷰어</h1>
+                <p class="hero-subtitle">시장 지표부터 개별 종목 분석까지, 기다림 없이 확인하세요</p>
+                <div class="digital-ticker" id="digital-clock"></div>
+            </div>
+            <!-- 인증 영역 -->
+            <div id="authActions" style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="loginUsername" placeholder="아이디" style="padding:0.5rem 0.8rem; border-radius:8px; border:1px solid var(--border); background:var(--bg-color); color:var(--text-main); font-family:inherit;">
+                <input type="password" id="loginPassword" placeholder="비밀번호" style="padding:0.5rem 0.8rem; border-radius:8px; border:1px solid var(--border); background:var(--bg-color); color:var(--text-main); font-family:inherit;">
+                <button id="loginBtn" class="btn-primary" style="padding:0.5rem 1.2rem; flex:0 0 auto; white-space:nowrap;">로그인</button>
+                <button id="registerBtn" class="btn-primary" style="padding:0.5rem 1.2rem; background:var(--border); flex:0 0 auto; white-space:nowrap;">회원가입</button>
+            </div>
+            <div id="loggedInActions" class="hidden" style="display:flex; gap:0.5rem; align-items:center;">
+                <span id="loggedInUser" style="color:var(--primary); font-weight:600;"></span>
+                <button id="logoutBtn" class="btn-primary" style="padding:0.5rem 1rem; background:var(--loss);">로그아웃</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 시장 지표 카드 -->
+    <section style="margin-bottom:2rem;">
+        <div class="grid-3">
+            <div class="metric-card">
+                <span class="label">코스피 (KOSPI)</span>
+                <span class="value" id="kospiIndex">불러오는 중...</span>
+            </div>
+            <div class="metric-card">
+                <span class="label">코스닥 (KOSDAQ)</span>
+                <span class="value" id="kosdaqIndex">불러오는 중...</span>
+            </div>
+            <div class="metric-card">
+                <span class="label">환율 (USD/KRW)</span>
+                <span class="value" id="exchangeRate">불러오는 중...</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- 내 보유 종목 섹션 -->
+    <section class="portfolio-section" id="portfolioSection">
+        <h2 style="font-size: 1.5rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+            💰 내 보유 종목
+        </h2>
+
+        <div id="portfolioContent" class="hidden">
+            <!-- 포트폴리오 요약 카드 -->
+            <div id="portfolioSummary" class="portfolio-summary-grid hidden">
+                <div class="summary-card">
+                    <span class="label">총 평가 금액</span>
+                    <span class="value" id="summaryTotalValue">-</span>
+                </div>
+                <div class="summary-card">
+                    <span class="label">투자 원금</span>
+                    <span class="value" id="summaryTotalCost">-</span>
+                </div>
+                <div class="summary-card">
+                    <span class="label">전체 평가 손익</span>
+                    <span class="value" id="summaryTotalProfit">-</span>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1rem; display: flex; gap: 10px; flex-wrap:wrap;">
+                <input type="text" id="portTicker" placeholder="티커 (예: 005930.KS)" style="flex:1; min-width:120px; padding: 0.5rem; border-radius:6px; border:1px solid var(--border); background:var(--bg-color); color:var(--text-main); font-family:inherit;">
+                <input type="number" id="portQty" placeholder="수량" style="width: 80px; padding: 0.5rem; border-radius:6px; border:1px solid var(--border); background:var(--bg-color); color:var(--text-main); font-family:inherit;">
+                <input type="number" id="portPrice" placeholder="매수가 (원)" style="flex:1; min-width:120px; padding: 0.5rem; border-radius:6px; border:1px solid var(--border); background:var(--bg-color); color:var(--text-main); font-family:inherit;">
+                <button id="addPortBtn" class="btn-primary" style="padding: 0.5rem 1rem;">종목 추가</button>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 1rem; border-bottom: 2px solid var(--border);">
+                <thead style="background: var(--card-bg); border-bottom: 1px solid var(--border); text-align: left;">
+                    <tr>
+                        <th style="padding: 0.8rem; color:var(--text-muted); font-weight:600;">종목</th>
+                        <th style="padding: 0.8rem; color:var(--text-muted); font-weight:600;">수량</th>
+                        <th style="padding: 0.8rem; color:var(--text-muted); font-weight:600;">구매단가</th>
+                        <th style="padding: 0.8rem; color:var(--text-muted); font-weight:600;">현재가</th>
+                        <th style="padding: 0.8rem; color:var(--text-muted); font-weight:600;">손익</th>
+                        <th style="padding: 0.8rem; color:var(--text-muted); font-weight:600;">삭제</th>
+                    </tr>
+                </thead>
+                <tbody id="portfolioTableBody">
+                    <!-- JavaScript로 삽입됩니다 -->
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 검색 섹션 -->
+    <section class="search-section">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="예: 삼성전자, 네이버, AAPL, 005930.KS">
+            <select id="periodSelect">
+                <option value="1mo">1개월</option>
+                <option value="3mo" selected>3개월</option>
+                <option value="6mo">6개월</option>
+                <option value="1y">1년</option>
+                <option value="2y">2년</option>
+                <option value="5y">5년</option>
+            </select>
+            <button id="searchBtn" class="btn-primary">조회하기</button>
+            <button type="button" id="top50Btn" class="btn-top50" title="거래대금 순위 상위 50종목 보기">📊 거래순위 TOP50</button>
+        </div>
+    </section>
+
+    <!-- 거래순위 TOP50 섹션 (버튼 클릭 시 표시) -->
+    <section id="top50Section" class="top50-section hidden">
+        <h2 style="font-size:1.25rem; margin-bottom:0.5rem;">📊 거래대금 순위 TOP50 (코스피 25 + 코스닥 25)</h2>
+        <p id="top50Criteria" style="color:var(--text-muted); font-size:0.9rem; margin-bottom:0.75rem;">종목을 클릭하면 하단에서 차트·정보를 조회합니다.</p>
+        <div class="top50-table-wrap">
+            <table class="top50-table">
+                <thead>
+                    <tr>
+                        <th>순위</th>
+                        <th>시장</th>
+                        <th>종목명</th>
+                        <th>종가</th>
+                        <th>거래대금</th>
+                        <th>등락률</th>
+                    </tr>
+                </thead>
+                <tbody id="top50TableBody">
+                    <!-- JavaScript로 삽입 -->
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div id="loadingIndicator" class="hidden">
+        ⏳ 데이터를 불러오는 중...
+    </div>
+
+    <!-- 결과 섹션 -->
+    <section id="resultSection" class="hidden">
+        <div class="result-header">
+            <h2 id="stockNameHeading">종목명</h2>
+        </div>
+
+        <!-- 탭 메뉴 -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="tab-chart">📈 차트</button>
+            <button class="tab-btn" data-tab="tab-info">📊 기본 정보</button>
+            <button class="tab-btn" data-tab="tab-detail">📋 재무·시장·산업</button>
+            <button class="tab-btn" data-tab="tab-news">📰 뉴스</button>
+            <button class="tab-btn" data-tab="tab-dividend">💰 배당</button>
+        </div>
+
+        <div class="tab-content">
+            <!-- 차트 탭 -->
+            <div id="tab-chart" class="tab-pane">
+                <canvas id="priceChart" style="max-height:400px;"></canvas>
+            </div>
+
+            <!-- 기본 정보 탭 -->
+            <div id="tab-info" class="tab-pane hidden">
+                <div class="grid-3">
+                    <div class="metric-card">
+                        <span class="label">현재가</span>
+                        <span class="value" id="basicPrice">—</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">전일 종가</span>
+                        <span class="value" id="basicPrevPrice">—</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">PER</span>
+                        <span class="value" id="basicPER">—</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">시가총액</span>
+                        <span class="value" id="basicMarketCap">—</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">섹터 / 업종</span>
+                        <span class="value" id="basicSector">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 재무·시장·산업 탭 -->
+            <div id="tab-detail" class="tab-pane hidden">
+                <p class="label" style="margin-bottom:0.5rem;">재무 상태</p>
+                <div id="detailFinancials" class="detail-block"></div>
+                <p class="label" style="margin:1rem 0 0.5rem;">시장 동향 (애널리스트)</p>
+                <div id="detailMarketTrend" class="detail-block"></div>
+                <p class="label" style="margin:1rem 0 0.5rem;">산업 전망</p>
+                <div id="detailIndustryOutlook" class="detail-block"></div>
+            </div>
+
+            <!-- 뉴스 탭 -->
+            <div id="tab-news" class="tab-pane hidden">
+                <ul class="news-list" id="newsList"></ul>
+            </div>
+
+            <!-- 배당 탭 -->
+            <div id="tab-dividend" class="tab-pane hidden">
+                <div class="grid-3">
+                    <div class="metric-card">
+                        <span class="label">배당 수익률</span>
+                        <span class="value" id="divYield">—</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">최근 배당</span>
+                        <span class="value" id="divLast">—</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">배당 성향</span>
+                        <span class="value" id="divPayout">—</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</div><!-- /#app-container -->
+
+<footer class="app-footer">
+    <span class="footer-title">주식 정보·차트 뷰어</span>
+    <span class="footer-author">&lt;제작자 Luna&gt;</span>
+</footer>
+
+<!-- AI 챗봇 (우측 하단 고정) -->
+<div id="aiChatbotContainer" class="chat-container closed">
+    <div class="chat-header" id="chatHeader">
+        <span>🤖 AI 주식 분석 어시스턴트</span>
+        <button id="chatToggleBtn" title="접기/펼치기">▲</button>
+    </div>
+    <div class="chat-body">
+        <div class="chat-messages" id="chatMessages">
+            <div class="message assistant">
+                안녕하세요! 주식 분석 AI 어시스턴트입니다. 종목이나 시장에 대해 질문해보세요 📊
+            </div>
+        </div>
+        <div class="chat-quick-actions">
+            <button class="quick-btn" data-query="삼성전자 현재 주가 분석해줘">삼성전자 분석</button>
+            <button class="quick-btn" data-query="요즘 시장 동향이 어때?">시장 동향</button>
+            <button class="quick-btn" data-query="포트폴리오 리밸런싱 조언해줘">리밸런싱</button>
+            <button class="quick-btn" data-query="애플 실적 전망 알려줘">애플 전망</button>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" placeholder="AI에게 질문하세요...">
+            <button class="btn-primary" id="chatSendBtn">전송</button>
+        </div>
+    </div>
+</div>
+
+<script src="app.js?v=20260306"></script>
+</body>
+</html>
