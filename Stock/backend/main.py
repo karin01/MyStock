@@ -35,9 +35,13 @@ from backend.stock_detail import get_stock_detail
 app = FastAPI(title="Stock Viewer API", version="1.0.0")
 
 # CORS 활성화 (프론트엔드 연동)
+# credentials=True 일 때 allow_origins 는 "*" 불가(브라우저 스펙). 로컬 프론트 명시.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # 상용 환경에서는 특정 도메인으로 제한 필요
+    allow_origins=[
+        "http://127.0.0.1:8765",
+        "http://localhost:8765",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -159,12 +163,18 @@ def market_overview():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/market/top_traded")
-def top_traded(market: str = "KOSPI", limit: int = 10, is_etf: bool = False):
+def top_traded(
+    market: str = "KOSPI",
+    limit: int = 10,
+    is_etf: bool = False,
+    sort_by: str = "거래대금",
+):
+    """sort_by: 거래대금(기본) | 거래량 또는 volume / vol (주식만, ETF는 거래대금 고정)"""
     try:
         if is_etf:
             data = get_top_traded_etfs(limit)
             return {"status": "success", "data": data, "기준일": None}
-        data, 기준일 = get_top_traded_stocks(limit, market)
+        data, 기준일 = get_top_traded_stocks(limit, market, sort_by=sort_by)
         return {"status": "success", "data": data, "기준일": 기준일}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -54,9 +54,9 @@ python backend/main.py
 
 두 번째 터미널 (프론트엔드 웹 서버 실행):
 cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock\frontend"
-python -m http.server 8080
+python -m http.server 8765
 
-※ 실행 후 웹 브라우저에서 http://localhost:8080 에 접속하세요.
+※ 실행 후 웹 브라우저에서 http://127.0.0.1:8765 에 접속하세요.
 
 
 ========================================

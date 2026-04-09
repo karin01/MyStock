@@ -1,4 +1,14 @@
-const API_BASE = "http://localhost:8000/api";
+// localhost 는 Windows 에서 ::1(IPv6) 만 열리는 경우가 있어 127.0.0.1 고정 (백엔드와 주소 일치)
+const API_BASE = "http://127.0.0.1:8000/api";
+
+/** API 서버 미기동·주소 불일치 시 사용자 안내 */
+function alertApiUnreachable(context) {
+    var msg = "API 서버에 연결할 수 없습니다.\n\n"
+        + "• Stock 백엔드가 http://127.0.0.1:8000 에서 실행 중인지 확인하세요.\n"
+        + "• 프론트는 http://127.0.0.1:8765 로 여는 것을 권장합니다.";
+    if (context) msg = context + "\n\n" + msg;
+    alert(msg);
+}
 let priceChartInstance = null;
 
 // DOM Elements
@@ -245,58 +255,125 @@ function formatTop50Money(val) {
     return n.toLocaleString();
 }
 
+/** 거래량 순위 표시용 (주 단위, 만·억 축약) */
+function formatRankVolume(val) {
+    if (val == null || isNaN(val)) return "—";
+    var n = Number(val);
+    if (n >= 1e8) return (n / 1e8).toFixed(2) + "억주";
+    if (n >= 1e4) return (n / 1e4).toFixed(1) + "만주";
+    return Math.round(n).toLocaleString("ko-KR") + "주";
+}
+
+var volumeRankTableBody = document.getElementById("volumeRankTableBody");
+
 top50Btn.addEventListener('click', async () => {
     if (top50Section.classList.contains('hidden')) {
         top50TableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.5rem;">불러오는 중...</td></tr>';
+        if (volumeRankTableBody) {
+            volumeRankTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.5rem;">불러오는 중...</td></tr>';
+        }
         top50Section.classList.remove('hidden');
         try {
-            const [kospiRes, kosdaqRes] = await Promise.all([
+            const [kospiRes, kosdaqRes, kVolRes, qVolRes] = await Promise.all([
                 fetch(`${API_BASE}/market/top_traded?market=KOSPI&limit=25`),
-                fetch(`${API_BASE}/market/top_traded?market=KOSDAQ&limit=25`)
+                fetch(`${API_BASE}/market/top_traded?market=KOSDAQ&limit=25`),
+                fetch(`${API_BASE}/market/top_traded?market=KOSPI&limit=25&sort_by=volume`),
+                fetch(`${API_BASE}/market/top_traded?market=KOSDAQ&limit=25&sort_by=volume`),
             ]);
             const kospiJson = await kospiRes.json();
             const kosdaqJson = await kosdaqRes.json();
+            const kVolJson = await kVolRes.json();
+            const qVolJson = await qVolRes.json();
+
             if (!kospiRes.ok || !kosdaqRes.ok) {
                 var errMsg = (kospiJson.detail || kosdaqJson.detail || "서버 오류") + "";
                 top50TableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:var(--loss);">' + escapeHtml(errMsg) + '</td></tr>';
-                return;
+            } else {
+                const kospiList = kospiJson.data || [];
+                const kosdaqList = kosdaqJson.data || [];
+                var refDate = kospiJson.기준일 || kosdaqJson.기준일 || null;
+                var criteriaEl = document.getElementById('top50Criteria');
+                if (criteriaEl) {
+                    if (refDate) criteriaEl.innerHTML = '기준일: <strong>' + refDate + '</strong> (최근 영업일 종가·거래대금) — 종목을 클릭하면 하단에서 차트·정보를 조회합니다.';
+                    else criteriaEl.innerText = '종목을 클릭하면 하단에서 차트·정보를 조회합니다.';
+                }
+                var rows = [];
+                kospiList.forEach(function(item, i) {
+                    rows.push({ rank: i + 1, market: "코스피", marketCode: "KOSPI", ticker: item.티커, name: item.종목명, close: item.종가, money: item.거래대금, pct: item.등락률 });
+                });
+                kosdaqList.forEach(function(item, i) {
+                    rows.push({ rank: i + 1, market: "코스닥", marketCode: "KOSDAQ", ticker: item.티커, name: item.종목명, close: item.종가, money: item.거래대금, pct: item.등락률 });
+                });
+                top50TableBody.innerHTML = "";
+                if (rows.length === 0) {
+                    top50TableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:var(--text-muted);">데이터가 없습니다. (비거래일이거나 KRX 연결을 확인해 주세요.)</td></tr>';
+                } else {
+                    rows.forEach(function(r) {
+                        var tickerSuffix = r.marketCode === "KOSPI" ? ".KS" : ".KQ";
+                        var searchTicker = (r.ticker || "").trim();
+                        if (searchTicker && !searchTicker.endsWith(".KS") && !searchTicker.endsWith(".KQ")) searchTicker += tickerSuffix;
+                        var pctNum = r.pct != null ? Number(r.pct) : null;
+                        var pctClass = pctNum != null ? (pctNum >= 0 ? "profit" : "loss") : "";
+                        var pctStr = pctNum != null ? (pctNum >= 0 ? "+" : "") + pctNum.toFixed(2) + "%" : "—";
+                        var tr = document.createElement("tr");
+                        tr.setAttribute("data-ticker", searchTicker);
+                        tr.className = "top50-row";
+                        tr.innerHTML = "<td>" + r.rank + "</td><td>" + r.market + "</td><td class=\"top50-name\">" + escapeHtml(r.name || r.ticker) + "</td><td>" + (r.close != null ? Math.round(r.close).toLocaleString("ko-KR") + "원" : "—") + "</td><td>" + formatTop50Money(r.money) + "원</td><td class=\"" + pctClass + "\">" + pctStr + "</td>";
+                        top50TableBody.appendChild(tr);
+                    });
+                }
             }
-            const kospiList = kospiJson.data || [];
-            const kosdaqList = kosdaqJson.data || [];
-            var refDate = kospiJson.기준일 || kosdaqJson.기준일 || null;
-            var criteriaEl = document.getElementById('top50Criteria');
-            if (criteriaEl) {
-                if (refDate) criteriaEl.innerHTML = '기준일: <strong>' + refDate + '</strong> (최근 영업일 종가·거래대금) — 종목을 클릭하면 하단에서 차트·정보를 조회합니다.';
-                else criteriaEl.innerText = '종목을 클릭하면 하단에서 차트·정보를 조회합니다.';
+
+            var volCrit = document.getElementById("volumeRankCriteria");
+            if (volumeRankTableBody) {
+                if (!kVolRes.ok || !qVolRes.ok) {
+                    var vErr = (kVolJson.detail || qVolJson.detail || "서버 오류") + "";
+                    volumeRankTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:var(--loss);">' + escapeHtml(vErr) + '</td></tr>';
+                    if (volCrit) volCrit.textContent = "거래량 순위를 불러오지 못했습니다.";
+                } else {
+                    var vk = kVolJson.data || [];
+                    var vq = qVolJson.data || [];
+                    var vRef = kVolJson.기준일 || qVolJson.기준일 || null;
+                    if (volCrit) {
+                        if (vRef) {
+                            volCrit.innerHTML = '기준일: <strong>' + vRef + '</strong> (최근 영업일 거래량 순) — 종목을 클릭하면 하단에서 차트·정보를 조회합니다.';
+                        } else {
+                            volCrit.textContent = "종목을 클릭하면 하단에서 차트·정보를 조회합니다.";
+                        }
+                    }
+                    var vrows = [];
+                    vk.forEach(function(item, i) {
+                        vrows.push({ rank: i + 1, market: "코스피", marketCode: "KOSPI", ticker: item.티커, name: item.종목명, close: item.종가, volume: item.거래량, pct: item.등락률 });
+                    });
+                    vq.forEach(function(item, i) {
+                        vrows.push({ rank: i + 1, market: "코스닥", marketCode: "KOSDAQ", ticker: item.티커, name: item.종목명, close: item.종가, volume: item.거래량, pct: item.등락률 });
+                    });
+                    volumeRankTableBody.innerHTML = "";
+                    if (vrows.length === 0) {
+                        volumeRankTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:var(--text-muted);">거래량 데이터가 없습니다.</td></tr>';
+                    } else {
+                        vrows.forEach(function(r) {
+                            var tickerSuffix = r.marketCode === "KOSPI" ? ".KS" : ".KQ";
+                            var searchTicker = (r.ticker || "").trim();
+                            if (searchTicker && !searchTicker.endsWith(".KS") && !searchTicker.endsWith(".KQ")) searchTicker += tickerSuffix;
+                            var pctNum = r.pct != null ? Number(r.pct) : null;
+                            var pctClass = pctNum != null ? (pctNum >= 0 ? "profit" : "loss") : "";
+                            var pctStr = pctNum != null ? (pctNum >= 0 ? "+" : "") + pctNum.toFixed(2) + "%" : "—";
+                            var tr = document.createElement("tr");
+                            tr.setAttribute("data-ticker", searchTicker);
+                            tr.className = "top50-row volume-rank-row";
+                            tr.innerHTML = "<td>" + r.rank + "</td><td>" + r.market + "</td><td class=\"top50-name\">" + escapeHtml(r.name || r.ticker) + "</td><td>" + (r.close != null ? Math.round(r.close).toLocaleString("ko-KR") + "원" : "—") + "</td><td>" + formatRankVolume(r.volume) + "</td><td class=\"" + pctClass + "\">" + pctStr + "</td>";
+                            volumeRankTableBody.appendChild(tr);
+                        });
+                    }
+                }
             }
-            var rows = [];
-            kospiList.forEach(function(item, i) {
-                rows.push({ rank: i + 1, market: "코스피", marketCode: "KOSPI", ticker: item.티커, name: item.종목명, close: item.종가, money: item.거래대금, pct: item.등락률 });
-            });
-            kosdaqList.forEach(function(item, i) {
-                rows.push({ rank: i + 1, market: "코스닥", marketCode: "KOSDAQ", ticker: item.티커, name: item.종목명, close: item.종가, money: item.거래대금, pct: item.등락률 });
-            });
-            top50TableBody.innerHTML = "";
-            if (rows.length === 0) {
-                top50TableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:var(--text-muted);">데이터가 없습니다. (비거래일이거나 KRX 연결을 확인해 주세요.)</td></tr>';
-                return;
-            }
-            rows.forEach(function(r) {
-                var tickerSuffix = r.marketCode === "KOSPI" ? ".KS" : ".KQ";
-                var searchTicker = (r.ticker || "").trim();
-                if (searchTicker && !searchTicker.endsWith(".KS") && !searchTicker.endsWith(".KQ")) searchTicker += tickerSuffix;
-                var pctNum = r.pct != null ? Number(r.pct) : null;
-                var pctClass = pctNum != null ? (pctNum >= 0 ? "profit" : "loss") : "";
-                var pctStr = pctNum != null ? (pctNum >= 0 ? "+" : "") + pctNum.toFixed(2) + "%" : "—";
-                var tr = document.createElement("tr");
-                tr.setAttribute("data-ticker", searchTicker);
-                tr.className = "top50-row";
-                tr.innerHTML = "<td>" + r.rank + "</td><td>" + r.market + "</td><td class=\"top50-name\">" + escapeHtml(r.name || r.ticker) + "</td><td>" + (r.close != null ? Math.round(r.close).toLocaleString("ko-KR") + "원" : "—") + "</td><td>" + formatTop50Money(r.money) + "원</td><td class=\"" + pctClass + "\">" + pctStr + "</td>";
-                top50TableBody.appendChild(tr);
-            });
         } catch (e) {
             console.error("TOP50 load error", e);
             top50TableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:var(--loss);">데이터를 불러오지 못했습니다.</td></tr>';
+            if (volumeRankTableBody) {
+                volumeRankTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:var(--loss);">데이터를 불러오지 못했습니다.</td></tr>';
+            }
         }
     } else {
         top50Section.classList.add('hidden');
@@ -305,12 +382,23 @@ top50Btn.addEventListener('click', async () => {
 
 top50TableBody.addEventListener('click', function(e) {
     var tr = e.target.closest('tr.top50-row');
-    if (!tr) return;
+    if (!tr || tr.classList.contains('volume-rank-row')) return;
     var ticker = tr.getAttribute('data-ticker');
     if (!ticker) return;
     searchInput.value = ticker;
     searchBtn.click();
 });
+
+if (volumeRankTableBody) {
+    volumeRankTableBody.addEventListener('click', function(e) {
+        var tr = e.target.closest('tr.volume-rank-row');
+        if (!tr) return;
+        var ticker = tr.getAttribute('data-ticker');
+        if (!ticker) return;
+        searchInput.value = ticker;
+        searchBtn.click();
+    });
+}
 async function fetchMarketOverview() {
     try {
         const res = await fetch(`${API_BASE}/market/overview`);
@@ -339,6 +427,10 @@ async function fetchMarketOverview() {
         }
     } catch (e) {
         console.error("Market Overview Error", e);
+        var hint = "연결 실패";
+        document.getElementById('kospiIndex').innerText = hint;
+        document.getElementById('kosdaqIndex').innerText = hint;
+        document.getElementById('exchangeRate').innerText = hint;
     }
 }
 window.addEventListener('DOMContentLoaded', () => {
@@ -397,7 +489,7 @@ loginBtn.addEventListener('click', async () => {
             alert(json.detail || "로그인 실패");
         }
     } catch(e) {
-        alert("로그인 에러");
+        alertApiUnreachable("로그인 요청 실패");
     }
 });
 
@@ -420,7 +512,7 @@ registerBtn.addEventListener('click', async () => {
             alert(json.detail || "회원가입 실패");
         }
     } catch(e) {
-        alert("회원가입 에러");
+        alertApiUnreachable("회원가입 요청 실패");
     }
 });
 

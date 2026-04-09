@@ -1,0 +1,15 @@
+# 실행하기.bat 자동 설치용 최소/안정 패키지 목록
+# 목적: 백엔드/프론트/텔레그램 봇을 안정적으로 기동
+# 주의: pykrx/finance-datareader 경로는 Python 3.13에서 numpy 소스 빌드를 유도할 수 있어 자동 설치 대상에서 제외
+
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
+
+pandas>=2.2.0
+matplotlib>=3.8.0
+yfinance>=0.2.36
+
+requests>=2.28.0
+python-dotenv>=1.0.0
+openai>=1.0.0
