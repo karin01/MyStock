@@ -10,16 +10,16 @@
 | **Git 클론** | 저장소 전체를 받습니다. 게임 경로만 쓰면 됩니다. |
 | **ZIP 다운로드** | GitHub에서 소스 ZIP을 받아 압축을 풉니다. |
 
-- **저장소 주소:** `https://github.com/karin01/MyStock`
+- **저장소 주소:** `https://github.com/karin01/TEXT-Mud-Gane`
 - **이 게임 폴더(저장소 안 경로):** `AI 1인 MUD Game NEON REQUIEM/`
-- **ZIP으로 받기(브라우저):** [master 브랜치 ZIP](https://github.com/karin01/MyStock/archive/refs/heads/master.zip)  
+- **ZIP으로 받기(브라우저):** [master 브랜치 ZIP](https://github.com/karin01/TEXT-Mud-Gane/archive/refs/heads/master.zip)  
   압축 해제 후 `MyStock-master` 등 상위 폴더 안에서 **`AI 1인 MUD Game NEON REQUIEM`** 폴더로 들어갑니다.
 
 ### Git으로 클론하는 경우
 
 ```bash
-git clone https://github.com/karin01/MyStock.git
-cd MyStock
+git clone https://github.com/karin01/TEXT-Mud-Gane.git
+cd TEXT-Mud-Gane
 cd "AI 1인 MUD Game NEON REQUIEM"
 ```
 
