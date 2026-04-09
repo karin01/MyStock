@@ -1,0 +1,5 @@
+# NEON REQUIEM 2087 — Flask 백엔드 의존성
+# 게임시작.bat 실행 시 자동으로 설치됩니다.
+
+flask>=3.0.0
+flask-cors>=4.0.0

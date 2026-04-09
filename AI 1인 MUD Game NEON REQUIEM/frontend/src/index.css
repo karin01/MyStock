@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cyber-cyan: #0ddff2;
+  --color-cyber-neon: #39ff14;
+  --color-cyber-purple: #7b5df9;
+  --color-cyber-red: #ff2a54;
+}
+
+@layer utilities {
+  .text-shadow-glow-cyan {
+    text-shadow:
+      0 0 5px #0ddff2,
+      0 0 10px #0ddff2;
+  }
+  .text-shadow-glow-green {
+    text-shadow:
+      0 0 5px #39ff14,
+      0 0 10px #39ff14;
+  }
+  .text-shadow-glow-red {
+    text-shadow:
+      0 0 5px #ff2a54,
+      0 0 10px #ff2a54;
+  }
+
+  /* Custom scrollbar for webkit */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgba(10, 11, 16, 0.5);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(13, 223, 242, 0.4);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(13, 223, 242, 0.8);
+  }
+}
+
+body {
+  background-color: #050510;
+  color: #39ff14;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: "Courier New", Courier, monospace; /* Fallback retro font */
+}
+
+/* 로그 [SCREEN_SHAKE] 연출 — 레이아웃은 flex 유지, 짧은 흔들림만 */
+@keyframes nr-console-shake {
+  0% {
+    transform: translate(0, 0);
+  }
+  15% {
+    transform: translate(-4px, 2px);
+  }
+  30% {
+    transform: translate(4px, -3px);
+  }
+  50% {
+    transform: translate(-3px, -2px);
+  }
+  70% {
+    transform: translate(3px, 2px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}

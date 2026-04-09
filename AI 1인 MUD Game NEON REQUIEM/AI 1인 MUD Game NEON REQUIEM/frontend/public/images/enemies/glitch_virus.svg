@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <rect width="320" height="200" fill="#052e16"/>
+  <polygon points="160,40 200,100 160,160 120,100" fill="#22c55e" opacity="0.6"/>
+  <polygon points="160,55 185,100 160,145 135,100" fill="#4ade80" opacity="0.5"/>
+  <text x="160" y="188" text-anchor="middle" fill="#bbf7d0" font-size="11" font-family="sans-serif">GLITCH VIRUS</text>
+</svg>

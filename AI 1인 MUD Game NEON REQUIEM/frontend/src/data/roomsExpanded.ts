@@ -1,0 +1,153 @@
+/**
+ * 맵 확장 구역 (기존 ROOMS_BASE의 약 10배 규모)
+ * WHY: slum_south_gate, slum_west_corridor, sewer_south_branch, plaza_east_wing 으로 연결됨.
+ */
+import type { Room } from './roomTypes';
+
+export const ROOMS_EXPANDED: Room[] = [
+  // ─── 슬럼 남부 확장 (slum_south_gate) ───
+  { id: 'slum_south_gate', name: '슬럼 남부 관문', description: '지하 슬럼으로 내려가는 비밀 통로 입구.', exits: { '북': 'slum_market', '남': 'slum_s1' }, encounterChance: 0.2, mapX: 3, mapY: 7 },
+  { id: 'slum_s1', name: '슬럼 지하 1층', description: '누수가 심한 지하 주거 구역.', exits: { '북': 'slum_south_gate', '남': 'slum_s2', '동': 'slum_s1e' }, encounterChance: 0.35, mapX: 3, mapY: 8 },
+  { id: 'slum_s2', name: '슬럼 지하 2층', description: '형광등이 깜빡이는 좁은 복도.', exits: { '북': 'slum_s1', '남': 'slum_s3', '서': 'slum_s2w' }, encounterChance: 0.4, mapX: 3, mapY: 9 },
+  { id: 'slum_s3', name: '슬럼 지하 3층', description: '폐쇄된 창고들이 줄지어 있다.', exits: { '북': 'slum_s2', '동': 'slum_s3e', '서': 'slum_s3w' }, encounterChance: 0.45, mapX: 3, mapY: 10 },
+  { id: 'slum_s1e', name: '동쪽 골목', description: '쓰레기 더미 사이 좁은 길.', exits: { '서': 'slum_s1', '동': 'slum_s1e2' }, encounterChance: 0.3, mapX: 4, mapY: 8 },
+  { id: 'slum_s1e2', name: '동쪽 골목 끝', description: '막다른 골목. 벽에 낙서가 가득하다.', exits: { '서': 'slum_s1e', '남': 'slum_s1e2s' }, encounterChance: 0.25, mapX: 5, mapY: 8 },
+  { id: 'slum_s1e2s', name: '숨겨진 창고', description: '불법 물자가 쌓여 있는 비밀 창고.', exits: { '북': 'slum_s1e2' }, encounterChance: 0.5, mapX: 5, mapY: 9 },
+  { id: 'slum_s2w', name: '서쪽 배수로', description: '악취가 나는 배수로 옆 길.', exits: { '동': 'slum_s2', '서': 'slum_s2w2' }, encounterChance: 0.5, mapX: 2, mapY: 9 },
+  { id: 'slum_s2w2', name: '배수로 갈래', description: '여러 갈래로 나뉜 하수도.', exits: { '동': 'slum_s2w', '남': 'slum_s2w2s', '서': 'slum_west_corridor' }, encounterChance: 0.45, mapX: 1, mapY: 9 },
+  { id: 'slum_s2w2s', name: '침수 구역', description: '발목까지 차오른 오염수.', exits: { '북': 'slum_s2w2' }, encounterChance: 0.6, mapX: 1, mapY: 10 },
+  { id: 'slum_s3e', name: '창고 동편', description: '녹슨 컨테이너가 널브러진 구역.', exits: { '서': 'slum_s3', '동': 'slum_s3e2' }, encounterChance: 0.5, mapX: 4, mapY: 10 },
+  { id: 'slum_s3e2', name: '컨테이너 야적장', description: '버려진 화물 컨테이너 산.', exits: { '서': 'slum_s3e', '남': 'slum_s3e2s' }, encounterChance: 0.55, mapX: 5, mapY: 10 },
+  { id: 'slum_s3e2s', name: '야적장 끝', description: '더 이상 갈 곳이 없는 막다른 곳처럼 보이지만, 남쪽으로 내려가는 좁은 통로가 이어져 있다.', exits: { '북': 'slum_s3e2' }, encounterChance: 0.65, mapX: 5, mapY: 11 },
+  { id: 'slum_s3w', name: '창고 서편', description: '파손된 창고 문들이 흔들린다.', exits: { '동': 'slum_s3', '서': 'slum_s3w2' }, encounterChance: 0.5, mapX: 2, mapY: 10 },
+  { id: 'slum_s3w2', name: '폐창고 단지', description: '완전히 버려진 창고 단지.', exits: { '동': 'slum_s3w', '북': 'slum_s3w2n' }, encounterChance: 0.6, mapX: 1, mapY: 10 },
+
+  // ─── 슬럼 서부 확장 (slum_west_corridor) ───
+  { id: 'slum_west_corridor', name: '서부 슬럼 회랑', description: '녹슨 벽 사이로 난 긴 회랑.', exits: { '동': 'rusty_alley', '서': 'slum_w1', '남': 'slum_s2w2' }, encounterChance: 0.35, mapX: 1, mapY: 6 },
+  { id: 'slum_w1', name: '서부 골목 1', description: '불쾌한 냄새가 스미는 뒷골목.', exits: { '동': 'slum_west_corridor', '서': 'slum_w2', '북': 'slum_w1n' }, encounterChance: 0.4, mapX: 0, mapY: 6 },
+  { id: 'slum_w2', name: '서부 골목 2', description: '깨진 유리창이 바람에 흔들린다.', exits: { '동': 'slum_w1', '서': 'slum_w3', '남': 'slum_w2s' }, encounterChance: 0.45, mapX: -1, mapY: 6 },
+  { id: 'slum_w3', name: '서부 골목 3', description: '거의 빛이 들지 않는 암흑 구역.', exits: { '동': 'slum_w2', '북': 'slum_w3n' }, encounterChance: 0.55, mapX: -2, mapY: 6 },
+  { id: 'slum_w1n', name: '북쪽 비탈길', description: '경사진 비탈을 오르는 좁은 길.', exits: { '남': 'slum_w1', '북': 'slum_w1n2' }, encounterChance: 0.35, mapX: 0, mapY: 5 },
+  { id: 'slum_w1n2', name: '비탈 정상', description: '넓은 공터. 바람이 세게 분다.', exits: { '남': 'slum_w1n', '동': 'slum_w1n2e' }, encounterChance: 0.3, mapX: 0, mapY: 4 },
+  { id: 'slum_w1n2e', name: '공터 동쪽', description: '버려진 차량들이 널려 있다.', exits: { '서': 'slum_w1n2', '동': 'slum_w1n2e2' }, encounterChance: 0.4, mapX: 1, mapY: 4 },
+  { id: 'slum_w1n2e2', name: '주차장 잔해', description: '붕괴한 주차 타워 잔해.', exits: { '서': 'slum_w1n2e' }, encounterChance: 0.5, mapX: 2, mapY: 4 },
+  { id: 'slum_w2s', name: '남쪽 배관', description: '거대한 배관이 천장을 가로지른다.', exits: { '북': 'slum_w2', '남': 'slum_w2s2' }, encounterChance: 0.5, mapX: -1, mapY: 7 },
+  { id: 'slum_w2s2', name: '배관 하부', description: '배관에서 떨어지는 액체가 바닥을 적신다.', exits: { '북': 'slum_w2s', '서': 'slum_w2s2w' }, encounterChance: 0.55, mapX: -1, mapY: 8 },
+  { id: 'slum_w2s2w', name: '배관 서단', description: '배관이 끝나는 어두운 공간.', exits: { '동': 'slum_w2s2' }, encounterChance: 0.6, mapX: -2, mapY: 8 },
+  { id: 'slum_w3n', name: '암흑 구역 북쪽', description: '손전등 없이는 앞을 볼 수 없다.', exits: { '남': 'slum_w3', '북': 'slum_w3n2' }, encounterChance: 0.65, mapX: -2, mapY: 5 },
+  { id: 'slum_w3n2', name: '잊힌 지하실', description: '오래전에 봉인된 지하실 입구.', exits: { '남': 'slum_w3n', '서': 'slum_w3n2w' }, encounterChance: 0.7, mapX: -2, mapY: 4 },
+  { id: 'slum_w3n2w', name: '지하실 깊은 곳', description: '곰팡이 냄새가 진동하는 공간.', exits: { '동': 'slum_w3n2' }, encounterChance: 0.8, mapX: -3, mapY: 4 },
+
+  // ─── 하수도 남부 확장 (sewer_south_branch) ───
+  { id: 'sewer_south_branch', name: '하수도 남쪽 가지', description: '본선에서 갈라진 남쪽 배수로.', exits: { '북': 'deep_sewer', '남': 'sewer_sw1' }, encounterChance: 0.45, mapX: 9, mapY: 6 },
+  { id: 'sewer_sw1', name: '하수도 남 1구간', description: '오염수가 졸졸 흐르는 터널.', exits: { '북': 'sewer_south_branch', '남': 'sewer_sw2', '동': 'sewer_sw1e' }, encounterChance: 0.5, mapX: 9, mapY: 7 },
+  { id: 'sewer_sw2', name: '하수도 남 2구간', description: '곰팡이가 벽을 덮은 구간.', exits: { '북': 'sewer_sw1', '서': 'sewer_sw2w' }, encounterChance: 0.55, mapX: 9, mapY: 8 },
+  { id: 'sewer_sw1e', name: '동쪽 배수로', description: '더 좁고 낮은 배수로.', exits: { '서': 'sewer_sw1', '동': 'sewer_sw1e2' }, encounterChance: 0.5, mapX: 10, mapY: 7 },
+  { id: 'sewer_sw1e2', name: '배수로 갈래', description: '여러 갈래가 만나는 지점.', exits: { '서': 'sewer_sw1e', '남': 'sewer_sw1e2s', '동': 'sewer_sw1e2e' }, encounterChance: 0.6, mapX: 11, mapY: 7 },
+  { id: 'sewer_sw1e2s', name: '남쪽 막다른 길', description: '폐쇄된 배수관 끝.', exits: { '북': 'sewer_sw1e2' }, encounterChance: 0.7, mapX: 11, mapY: 8 },
+  { id: 'sewer_sw1e2e', name: '동쪽 심층', description: '깊이 파인 하수도 확장 구역.', exits: { '서': 'sewer_sw1e2', '동': 'sewer_sw1e2e2' }, encounterChance: 0.65, mapX: 12, mapY: 7 },
+  { id: 'sewer_sw1e2e2', name: '심층 펌프실', description: '고장 난 펌프가 서 있는 넓은 공간.', exits: { '서': 'sewer_sw1e2e', '남': 'sewer_sw1e2e2s' }, encounterChance: 0.75, mapX: 13, mapY: 7 },
+  { id: 'sewer_sw1e2e2s', name: '펌프실 하부', description: '물이 고인 펌프실 바닥.', exits: { '북': 'sewer_sw1e2e2' }, encounterChance: 0.8, mapX: 13, mapY: 8 },
+  { id: 'sewer_sw2w', name: '서쪽 지선', description: '본선에서 멀어지는 지선 터널.', exits: { '동': 'sewer_sw2', '서': 'sewer_sw2w2' }, encounterChance: 0.6, mapX: 8, mapY: 8 },
+  { id: 'sewer_sw2w2', name: '지선 깊은 곳', description: '거의 사용되지 않은 구간.', exits: { '동': 'sewer_sw2w', '북': 'sewer_sw2w2n' }, encounterChance: 0.65, mapX: 7, mapY: 8 },
+  { id: 'sewer_sw2w2n', name: '지선 북단', description: '다시 본선 쪽으로 이어지는 갈래.', exits: { '남': 'sewer_sw2w2', '북': 'lower_slum_path' }, encounterChance: 0.5, mapX: 7, mapY: 7 },
+
+  // ─── 광장 동쪽 확장 (plaza_east_wing) ───
+  { id: 'plaza_east_wing', name: '광장 동쪽 날개', description: '버려진 지하 광장의 동쪽 확장 구역.', exits: { '서': 'underground_plaza', '동': 'plaza_e1' }, encounterChance: 0.25, mapX: 5, mapY: 4 },
+  { id: 'plaza_e1', name: '동편 복도 1', description: '천장이 낮은 동쪽 연결 복도.', exits: { '서': 'plaza_east_wing', '동': 'plaza_e2', '남': 'plaza_e1s' }, encounterChance: 0.3, mapX: 6, mapY: 4 },
+  { id: 'plaza_e2', name: '동편 복도 2', description: '벽에 홀로그램 광고가 깜빡인다.', exits: { '서': 'plaza_e1', '동': 'plaza_e3', '북': 'plaza_e2n' }, encounterChance: 0.35, mapX: 7, mapY: 4 },
+  { id: 'plaza_e3', name: '동편 대합실', description: '과거 대합실이었던 넓은 공간.', exits: { '서': 'plaza_e2', '남': 'plaza_e3s', '동': 'plaza_e3e' }, encounterChance: 0.3, mapX: 8, mapY: 4 },
+  { id: 'plaza_e1s', name: '남쪽 계단', description: '한 단계 더 아래로 내려가는 계단.', exits: { '북': 'plaza_e1', '남': 'plaza_e1s2' }, encounterChance: 0.35, mapX: 6, mapY: 5 },
+  { id: 'plaza_e1s2', name: '계단 하단', description: '습기 찬 지하 2층 입구.', exits: { '북': 'plaza_e1s', '동': 'plaza_e1s2e' }, encounterChance: 0.4, mapX: 6, mapY: 6 },
+  { id: 'plaza_e1s2e', name: '지하 2층 동편', description: '버려진 상가들이 줄선 복도.', exits: { '서': 'plaza_e1s2', '동': 'plaza_e1s2e2' }, encounterChance: 0.45, mapX: 7, mapY: 6 },
+  { id: 'plaza_e1s2e2', name: '상가 끝', description: '철문이 굳게 잠긴 상가들.', exits: { '서': 'plaza_e1s2e' }, encounterChance: 0.5, mapX: 8, mapY: 6 },
+  { id: 'plaza_e2n', name: '북쪽 연결로', description: '위층으로 올라가는 경사로.', exits: { '남': 'plaza_e2', '북': 'plaza_e2n2' }, encounterChance: 0.3, mapX: 7, mapY: 3 },
+  { id: 'plaza_e2n2', name: '연결로 상단', description: '다른 구역과 만나는 교차점.', exits: { '남': 'plaza_e2n', '동': 'plaza_e2n2e' }, encounterChance: 0.35, mapX: 7, mapY: 2 },
+  { id: 'plaza_e2n2e', name: '동쪽 전망대', description: '유리창이 깨진 소형 전망대.', exits: { '서': 'plaza_e2n2' }, encounterChance: 0.25, mapX: 8, mapY: 2, elevation: 1 },
+  { id: 'plaza_e3s', name: '대합실 남쪽', description: '대합실에서 남쪽으로 뻗은 통로.', exits: { '북': 'plaza_e3', '남': 'plaza_e3s2' }, encounterChance: 0.35, mapX: 8, mapY: 5 },
+  { id: 'plaza_e3s2', name: '남쪽 막다른 홀', description: '넓지만 출구가 없는 홀.', exits: { '북': 'plaza_e3s' }, encounterChance: 0.4, mapX: 8, mapY: 6 },
+  { id: 'plaza_e3e', name: '대합실 동쪽', description: '다음 구역으로 이어지는 문.', exits: { '서': 'plaza_e3', '동': 'plaza_e3e2' }, encounterChance: 0.35, mapX: 9, mapY: 4 },
+  { id: 'plaza_e3e2', name: '동쪽 터미널', description: '구형 교통 터미널 잔해.', exits: { '서': 'plaza_e3e', '북': 'plaza_e3e2n' }, encounterChance: 0.4, mapX: 10, mapY: 4 },
+  { id: 'plaza_e3e2n', name: '터미널 북편', description: '부서진 티켓 부스가 있다.', exits: { '남': 'plaza_e3e2' }, encounterChance: 0.45, mapX: 10, mapY: 3 },  // 다음 요소와 구분
+  // ─── 대규모 확장: 슬럼 심층 미로 (slum_s3e2s에서 남쪽) — 되돌이·우회로로 실제 미로처럼 길게 ───
+  { id: 'maze_s1', name: '심층 미로 입구', description: '야적장 남쪽으로 뻗은 좁은 통로. 앞은 한 번 꺾여야만 이어진다.', exits: { '북': 'slum_s3e2s', '서': 'maze_w1' }, encounterChance: 0.5, mapX: 5, mapY: 12 },
+  { id: 'maze_w1', name: '입구 서편 되돌이', description: '배관이 바닥을 가로질러 남쪽으로만 빠져 나간다. 같은 줄로 돌아가려면 다시 동쪽으로.', exits: { '동': 'maze_s1', '남': 'maze_w2' }, encounterChance: 0.52, mapX: 4, mapY: 12 },
+  { id: 'maze_w2', name: '되돌이 하단', description: '습기 냄새가 진한 모퉁이. 동쪽으로 꺾이면 본통으로 합류한다.', exits: { '북': 'maze_w1', '동': 'maze_s2' }, encounterChance: 0.54, mapX: 4, mapY: 13 },
+  { id: 'maze_s2', name: '미로 1구역', description: '갈래갈래 갈라지는 지하 통로.', exits: { '북': 'maze_w2', '남': 'maze_s3', '동': 'maze_s2e' }, encounterChance: 0.55, mapX: 5, mapY: 13 },
+  { id: 'maze_s3', name: '미로 2구역', description: '벽에 표시가 새겨진 복도. 바로 남쪽이 아니라 동쪽 긴 우회로로만 더 깊은 홀로 이어진다.', exits: { '북': 'maze_s2', '서': 'maze_s3w', '동': 'maze_s3e1' }, encounterChance: 0.5, mapX: 5, mapY: 14 },
+  { id: 'maze_s3e1', name: '동쪽 장복도', description: '등불 간격이 넓어 그림자가 길게 드리운다.', exits: { '서': 'maze_s3', '남': 'maze_s3e2' }, encounterChance: 0.52, mapX: 9, mapY: 14 },
+  { id: 'maze_s3e2', name: '동쪽 모퉁이', description: '서쪽으로 꺾이면 계단실 쪽 저음이 들린다.', exits: { '북': 'maze_s3e1', '서': 'maze_s4e_hook' }, encounterChance: 0.55, mapX: 9, mapY: 15 },
+  { id: 'maze_s4', name: '미로 3구역', description: '천장에서 물이 떨어진다. 북쪽으로는 2구역으로 바로 돌아갈 수 있다.', exits: { '북': 'maze_s3', '동': 'maze_s4e', '서': 'maze_s4_rest' }, encounterChance: 0.6, mapX: 5, mapY: 15 },
+  // WHY: 안전지대이나 초기 허브가 아니므로 적 추적 시 침공·함락 가능 → 전투 승리 시 자동 탈환(휴식 가능 복구).
+  { id: 'maze_s4_rest', name: '미로 휴식처', description: '배수관 틈새로 막아 만든 작은 움. 평소엔 휴식을 취할 수 있으나, 끈질긴 적이 찾아내면 함락되어 휴식이 불가해진다. 몬스터를 물리치면 다시 안전하게 숨을 고를 수 있다.', exits: { '동': 'maze_s4' }, encounterChance: 0, mapX: 4, mapY: 15, isSafe: true },
+  { id: 'maze_s2e', name: '동쪽 갈래', description: '미로에서 동쪽으로 뻗은 통로.', exits: { '서': 'maze_s2', '동': 'maze_s2e2' }, encounterChance: 0.5, mapX: 6, mapY: 13 },
+  { id: 'maze_s2e2', name: '동쪽 갈래 끝', description: '막다른 작은 방.', exits: { '서': 'maze_s2e', '남': 'maze_s2e2s' }, encounterChance: 0.55, mapX: 7, mapY: 13 },
+  { id: 'maze_s2e2s', name: '숨겨진 방', description: '오래된 짐들이 쌓여 있다.', exits: { '북': 'maze_s2e2' }, encounterChance: 0.6, mapX: 7, mapY: 14 },
+  { id: 'maze_s3w', name: '서쪽 갈래', description: '미로에서 서쪽으로 뻗은 통로.', exits: { '동': 'maze_s3', '서': 'maze_s3w2' }, encounterChance: 0.55, mapX: 4, mapY: 14 },
+  { id: 'maze_s3w2', name: '서쪽 갈래 끝', description: '빈 방. 바닥에 금이 가 있다.', exits: { '동': 'maze_s3w' }, encounterChance: 0.6, mapX: 3, mapY: 14 },
+  { id: 'maze_s4e', name: '미로 3구역 동편', description: '더 깊은 지하로 이어지는 계단으로 가려면 짧은 연결 통로를 거쳐야 한다.', exits: { '서': 'maze_s4', '동': 'maze_s4e_mid' }, encounterChance: 0.65, mapX: 6, mapY: 15 },
+  { id: 'maze_s4e_mid', name: '계단 연결로', description: '동편에서 들려 오는 물소리. 동쪽은 더 깊은 층으로 꺾인다.', exits: { '서': 'maze_s4e', '동': 'maze_s4e_hook' }, encounterChance: 0.62, mapX: 7, mapY: 15 },
+  { id: 'maze_s4e_hook', name: '계단 삼거리', description: '한쪽은 동쪽 우회로와 이어지고, 아래로 내려가면 4층 계단으로 닿는다.', exits: { '서': 'maze_s4e_mid', '동': 'maze_s3e2', '남': 'maze_s4e_hook2' }, encounterChance: 0.64, mapX: 8, mapY: 15 },
+  { id: 'maze_s4e_hook2', name: '계단 꺾임', description: '서쪽으로 돌아가야 계단참이 보인다.', exits: { '북': 'maze_s4e_hook', '서': 'maze_s4e2' }, encounterChance: 0.63, mapX: 8, mapY: 16 },
+  { id: 'maze_s4e2', name: '지하 4층 입구', description: '한 층 더 내려가는 계단.', exits: { '동': 'maze_s4e_hook2', '남': 'maze_s5' }, encounterChance: 0.6, mapX: 6, mapY: 16 },
+  { id: 'maze_s5', name: '지하 4층 복도', description: '콘크리트 벽이 무너져 내린 복도. 끝의 철문은 서쪽으로 한 번 돌아가야 닿는다.', exits: { '북': 'maze_s4e2', '동': 'maze_s5e', '서': 'maze_s5_tw' }, encounterChance: 0.65, mapX: 6, mapY: 17 },
+  { id: 'maze_s5_tw', name: '복도 서편 틈', description: '남쪽으로 좁아지는 통로. 철문 쪽은 동쪽으로만 이어진다.', exits: { '동': 'maze_s5', '남': 'maze_s5_gap' }, encounterChance: 0.66, mapX: 5, mapY: 17 },
+  {
+    id: 'maze_s5_gap',
+    name: '철문 앞 직통',
+    description:
+      '북쪽으로는 복도로 돌아간다. 동쪽에는 더 두꺼운 차단 철문이 있어, 그 앞 작은 공간으로만 이어진다.',
+    exits: { '북': 'maze_s5_tw', '동': 'maze_seal_vestibule' },
+    encounterChance: 0.68,
+    mapX: 5,
+    mapY: 18,
+  },
+  {
+    id: 'maze_seal_vestibule',
+    name: '차단 철문 앞',
+    description:
+      '철문이 동쪽 통로를 완전히 막고 있다. 옆 벽의 노란 패널에는 네 칸짜리 입력창이 있다. 바닥에 떨어진 찢긴 광고 전단에는 「NEON REQUIEM — since 2087」이라는 문구만 희미하게 살아 있다. 잠금을 풀 입력은 패널 앞에서 직접 맞혀야 한다.',
+    exits: { '서': 'maze_s5_gap', '동': 'maze_s6' },
+    puzzleGate: { '동': 'neon_foundry_year' },
+    encounterChance: 0.65,
+    mapX: 6,
+    mapY: 18,
+  },
+  {
+    id: 'maze_s6',
+    name: '지하 4층 끝',
+    description:
+      '차단 철문을 지나 드넓어진 복도의 끝. 한쪽에는 [지하 심층 구역 키]를 꽂을 수 있는 보안 터미널이, 남쪽에는 더 깊은 구역으로 통하는 삿갓문이 보인다. 동쪽 벽면에는 예전 러너들이 박아 둔 [상향 비상 링크]가 희미하게 점멸한다 — 심층 격납고와 단거리로 잇는다.',
+    exits: { '서': 'maze_seal_vestibule', '남': 'bulk_0_0', '동': 'bulk_terminal_vault' },
+    requiredKey: '지하 심층 구역 키',
+    encounterChance: 0.7,
+    mapX: 7,
+    mapY: 18,
+  },
+  // WHY: 벌크 14×50 최하단 캡스톤 — 데드엔드를 콘텐츠·보상·귀환 포탈로 바꿈 (roomsExpandedBulk 남쪽 출구와 연결)
+  {
+    id: 'bulk_terminal_vault',
+    name: '심층 최하단 격납고',
+    description:
+      '벌크 통로 맨 아래로 내려온 파이프 끝, 전성기 코퍼가 봉인해 둔 핵심 격납고다. 정전된 서버 랙 사이로 푸른 비상등만 깜빡이고, 바닥에는 항온 캡슐과 봉인 스티커가 덮인 케이스가 하나 남아 있다. [조사]로 격납물을 꺼낼 수 있을 것 같다. 동쪽 [상향 비상 링크]는 잡음이 심하지만 [지하 4층 끝]으로 곧장 이어진다.',
+    exits: { '북': 'bulk_13_49', '동': 'maze_s6' },
+    encounterChance: 0,
+    mapX: 49,
+    mapY: 70,
+    isSafe: true,
+  },
+  { id: 'maze_s5e', name: '동쪽 창고', description: '넓은 지하 창고. 먼지가 낀다.', exits: { '서': 'maze_s5', '동': 'maze_s5e2' }, encounterChance: 0.65, mapX: 7, mapY: 17 },
+  { id: 'maze_s5e2', name: '창고 안쪽', description: '오래된 상자들이 산더미.', exits: { '서': 'maze_s5e' }, encounterChance: 0.7, mapX: 8, mapY: 17 },
+  // ─── 기존 맵 보정: forbidden_lab에서 참조하는 방 ───
+  { id: 'broken_reactor', name: '파괴된 리액터', description: '반쯤 녹아내린 구형 리액터. 방사능 경고등이 깜빡인다.', exits: { '북': 'forbidden_lab' }, encounterChance: 0.9, mapX: 9, mapY: 9 },
+  // ─── 대규모 확장 2: 펌프실 남쪽 산업 지대 (sewer_sw1e2e2s 연결) ───
+  { id: 'ind_s1', name: '산업 지대 입구', description: '펌프실 남쪽으로 이어지는 철문.', exits: { '북': 'sewer_sw1e2e2s', '남': 'ind_s2' }, encounterChance: 0.5, mapX: 13, mapY: 9 },
+  { id: 'ind_s2', name: '산업 터널 1', description: '화물 열차가 다니던 넓은 터널.', exits: { '북': 'ind_s1', '남': 'ind_s3', '동': 'ind_s2e' }, encounterChance: 0.55, mapX: 13, mapY: 10 },
+  { id: 'ind_s3', name: '산업 터널 2', description: '선로가 부서져 바닥에 널브러져 있다.', exits: { '북': 'ind_s2', '남': 'ind_s4' }, encounterChance: 0.5, mapX: 13, mapY: 11 },
+  { id: 'ind_s4', name: '산업 터널 3', description: '벽에 유독성 경고 스티커가 붙어 있다.', exits: { '북': 'ind_s3', '서': 'ind_s4w' }, encounterChance: 0.6, mapX: 13, mapY: 12 },
+  { id: 'ind_s2e', name: '동쪽 분기로', description: '터널에서 갈라진 보조 선로.', exits: { '서': 'ind_s2', '동': 'ind_s2e2' }, encounterChance: 0.5, mapX: 14, mapY: 10 },
+  { id: 'ind_s2e2', name: '분기로 끝', description: '막힌 선로. 차량 잔해가 있다.', exits: { '서': 'ind_s2e', '남': 'ind_s2e2s' }, encounterChance: 0.55, mapX: 15, mapY: 10 },
+  { id: 'ind_s2e2s', name: '차량 격납고', description: '녹슨 화물차가 여러 대 방치되어 있다.', exits: { '북': 'ind_s2e2' }, encounterChance: 0.6, mapX: 15, mapY: 11 },
+  { id: 'ind_s4w', name: '서쪽 작업장', description: '거대한 기계가 멈춰 선 작업장.', exits: { '동': 'ind_s4', '서': 'ind_s4w2' }, encounterChance: 0.65, mapX: 12, mapY: 12 },
+  { id: 'ind_s4w2', name: '작업장 안쪽', description: '부품과 오일이 바닥에 흩어져 있다.', exits: { '동': 'ind_s4w' }, encounterChance: 0.7, mapX: 11, mapY: 12 },
+];
