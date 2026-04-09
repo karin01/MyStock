@@ -84,4 +84,7 @@ Mattang/firebase-credentials.json
 *.log
 *.db
 .DS_Store
-.smtcmp_json_db/ 
+.smtcmp_json_db/
+
+# 로컬 전용: TEXT-Mud-Game 푸시용 임시 복사본
+_TEXT-Mud-Game-export/
