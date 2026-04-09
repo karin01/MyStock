@@ -1,0 +1,6 @@
+# 구형 Streamlit 웹 UI (frontend/app_streamlit.py) + 선택 차트
+# 코어 설치 후: pip install -r requirements-streamlit.txt
+-r requirements.txt
+
+streamlit>=1.35.0
+plotly>=5.0.0

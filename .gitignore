@@ -10,3 +10,11 @@ price_alerts.json
 
 # 환경 변수 (봇 토큰 등 비밀키)
 .env
+
+# 텔레그램 봇 로컬 캐시
+telegram_price_cache.json
+telegram_search_info_cache.json
+
+# 로컬 임시 이미지·드로잉 (저장소 불필요)
+8080.png
+*제목 없음*

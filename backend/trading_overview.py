@@ -11,8 +11,20 @@ from datetime import datetime, timedelta
 # pykrx get_market_ohlcv_by_ticker 반환 컬럼: 시가, 고가, 저가, 종가, 거래량, 거래대금, 등락률, 시가총액
 # 인덱스 fallback (컬럼명 인코딩 이슈 대비)
 _COL_거래대금 = "거래대금"
+_COL_거래량 = "거래량"
 _COL_등락률 = "등락률"
 _COL_종가 = "종가"
+
+
+def _normalize_top_traded_sort(sort_by: str | None) -> str:
+    """거래순위 정렬: 거래대금(기본) | 거래량. 쿼리는 volume 등 ASCII 별칭 권장."""
+    if sort_by is None:
+        return "거래대금"
+    raw = str(sort_by).strip()
+    low = raw.casefold()
+    if low in ("volume", "vol", "v", "shares") or raw == "거래량":
+        return "거래량"
+    return "거래대금"
 
 # pykrx 실패 시 yfinance 폴백용 대표 유동 종목 (거래대금 상위에 자주 등장하는 티커)
 _FALLBACK_KOSPI = [
@@ -67,18 +79,21 @@ def get_market_overview() -> dict | None:
     return 결과
 
 
-def get_top_traded_stocks(limit: int = 10, market: str = "KOSPI") -> tuple[list[dict], str | None]:
+def get_top_traded_stocks(
+    limit: int = 10, market: str = "KOSPI", sort_by: str = "거래대금"
+) -> tuple[list[dict], str | None]:
     """
-    거래대금 상위 종목 반환. 장 마감 후에도 최근 영업일 종가·거래대금 기준으로 표시.
+    거래대금 또는 거래량 상위 종목 반환. 장 마감 후에도 최근 영업일 기준.
     market: KOSPI, KOSDAQ
+    sort_by: 거래대금(기본) | 거래량 또는 volume/vol 별칭
     반환: (목록, 기준일 YYYY-MM-DD 또는 None)
-    - KRX 연결 실패 시 ([], None)
-    - 최근 15일까지 역순으로 조회해 데이터 있는 첫 영업일 사용
+    - KRX 연결 실패 시 yfinance 폴백
     """
+    sort_by = _normalize_top_traded_sort(sort_by)
     try:
         from pykrx import stock
     except ImportError:
-        return ([], None)
+        return _get_top_traded_yfinance_fallback(limit, market, sort_by=sort_by)
 
     def _col(df, name: str, idx: int):
         if name in df.columns:
@@ -108,11 +123,24 @@ def get_top_traded_stocks(limit: int = 10, market: str = "KOSPI") -> tuple[list[
             if df is None or df.empty:
                 continue
             col_거래대금 = _col(df, _COL_거래대금, 5)
-            if col_거래대금 is None:
-                continue
+            col_거래량 = _col(df, _COL_거래량, 4)
+            if sort_by == "거래량":
+                if col_거래량 is None:
+                    continue
+            else:
+                if col_거래대금 is None:
+                    continue
             df = df.copy()
-            df["_거래대금"] = col_거래대금
-            df = df.sort_values("_거래대금", ascending=False).head(limit)
+            df["_거래대금"] = col_거래대금 if col_거래대금 is not None else 0
+            df["_거래량"] = col_거래량 if col_거래량 is not None else 0
+            # 등락률: 컬럼명 인코딩 깨짐 시 iloc[6] 이 어긋날 수 있어 _col 로 고정
+            col_등락률 = _col(df, _COL_등락률, 6)
+            if col_등락률 is not None:
+                df["_등락률"] = col_등락률
+            else:
+                df["_등락률"] = 0.0
+            sort_col = "_거래량" if sort_by == "거래량" else "_거래대금"
+            df = df.sort_values(sort_col, ascending=False).head(limit)
             결과 = []
             for 티커 in df.index:
                 try:
@@ -121,13 +149,15 @@ def get_top_traded_stocks(limit: int = 10, market: str = "KOSPI") -> tuple[list[
                     이름 = str(티커)
                 row = df.loc[티커]
                 거래대금 = _safe_float(row.get("_거래대금") or row.get(_COL_거래대금) or (row.iloc[5] if len(row) > 5 else 0))
+                거래량 = _safe_float(row.get("_거래량") or row.get(_COL_거래량) or (row.iloc[4] if len(row) > 4 else 0))
                 종가 = _safe_float(row.get(_COL_종가) or (row.iloc[3] if len(row) > 3 else 0))
-                등락률 = _safe_float(row.get(_COL_등락률) or (row.iloc[6] if len(row) > 6 else 0))
+                등락률 = _safe_float(row.get("_등락률"))
                 결과.append({
                     "티커": str(티커),
                     "종목명": 이름 or str(티커),
                     "종가": 종가,
                     "거래대금": 거래대금,
+                    "거래량": 거래량,
                     "등락률": 등락률,
                 })
             # 기준일을 YYYY-MM-DD 형태로 반환 (장 마감 후에도 '최근 영업일 종가'임을 표시용)
@@ -135,15 +165,17 @@ def get_top_traded_stocks(limit: int = 10, market: str = "KOSPI") -> tuple[list[
             return (결과, 기준일)
     except Exception:
         pass
-    # pykrx 실패 시 yfinance로 대표 종목 거래대금 추정해 표시
-    return _get_top_traded_yfinance_fallback(limit, market)
+    # pykrx 실패 시 yfinance로 대표 종목 추정
+    return _get_top_traded_yfinance_fallback(limit, market, sort_by=sort_by)
 
 
-def _get_top_traded_yfinance_fallback(limit: int, market: str) -> tuple[list[dict], str | None]:
+def _get_top_traded_yfinance_fallback(
+    limit: int, market: str, sort_by: str = "거래대금"
+) -> tuple[list[dict], str | None]:
     """
-    pykrx 실패 시 yfinance로 대표 종목의 거래대금(종가×거래량) 추정 후 상위 반환.
-    반환: (목록, 기준일 YYYY-MM-DD 또는 None)
+    pykrx 실패 시 yfinance로 대표 종목의 종가·거래량·거래대금(추정) 후 상위 반환.
     """
+    sort_by = _normalize_top_traded_sort(sort_by)
     import yfinance as yf
     from datetime import datetime
 
@@ -162,6 +194,12 @@ def _get_top_traded_yfinance_fallback(limit: int, market: str) -> tuple[list[dic
                 last_c = float(hist["Close"].iloc[-1])
                 last_v = float(hist["Volume"].iloc[-1]) if "Volume" in hist.columns else 0.0
                 money = last_c * last_v
+                # 전일 종가 대비 등락률(%). 기존에는 0.0 고정이라 UI 에 모두 +0.00% 로 보였음.
+                pct = 0.0
+                if len(hist) >= 2:
+                    prev_c = float(hist["Close"].iloc[-2])
+                    if prev_c and prev_c != 0:
+                        pct = round((last_c - prev_c) / prev_c * 100.0, 2)
                 if 기준일 is None and len(hist.index) > 0:
                     last_date = hist.index[-1]
                     기준일 = last_date.strftime("%Y-%m-%d") if hasattr(last_date, "strftime") else datetime.now().strftime("%Y-%m-%d")
@@ -177,9 +215,11 @@ def _get_top_traded_yfinance_fallback(limit: int, market: str) -> tuple[list[dic
                 "종목명": name,
                 "종가": last_c,
                 "거래대금": money,
-                "등락률": 0.0,
+                "거래량": last_v,
+                "등락률": pct,
             })
-        result_list.sort(key=lambda x: x["거래대금"], reverse=True)
+        sort_key = "거래량" if sort_by == "거래량" else "거래대금"
+        result_list.sort(key=lambda x: x[sort_key], reverse=True)
         if not 기준일:
             기준일 = datetime.now().strftime("%Y-%m-%d")
         return (result_list[:limit], 기준일)
