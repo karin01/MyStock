@@ -1,28 +1,35 @@
 # 주식 정보·차트 뷰어
 
-주식 **티커 심볼**을 입력하면 Yahoo Finance 데이터로 **기본 정보**와 **가격 차트**를 보여주는 도구입니다.
+주식 **티커 심볼**을 입력하면 Yahoo Finance 등 데이터로 **기본 정보**와 **가격 차트**를 보여주는 도구입니다.
 
 ## 데이터 출처
 
 - **Yahoo Finance** (yfinance 라이브러리)
   - 무료, API 키 불필요
-  - 미국/한국 등 다국가 주식 지원 (한국은 티러 뒤에 `.KS`/`.KQ` 사용)
+  - 미국/한국 등 다국가 주식 지원 (한국은 티커 뒤에 `.KS`/`.KQ` 사용)
 
 ## 설치
 
+저장소를 원하는 위치에 받은 뒤, **그 폴더(프로젝트 루트)** 에서 패키지를 설치합니다.
+
 ```bash
-cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
+git clone https://github.com/karin01/MyStock.git
+cd MyStock
 pip install -r requirements.txt
 ```
+
+(이미 폴더만 있다면 `git clone` 대신 해당 폴더로 `cd` 하면 됩니다.)
 
 ## 사용법
 
 ### 1) 명령줄에서 실행
 
+프로젝트 루트(`MyStock`)에서:
+
 ```bash
-python stock_viewer.py 삼성전자
-python stock_viewer.py 네이버 1y
-python stock_viewer.py AAPL
+python backend/stock_viewer.py 삼성전자
+python backend/stock_viewer.py 네이버 1y
+python backend/stock_viewer.py AAPL
 ```
 
 - **첫 번째 인자**: 회사명(한글) 또는 티커 (예: 삼성전자, 네이버, AAPL, 005930.KS)
@@ -30,14 +37,27 @@ python stock_viewer.py AAPL
 
 실행하면 터미널에 요약 정보가 출력되고, 같은 폴더에 `차트_티커.png` 차트 파일이 저장됩니다.
 
-### 2) 웹 UI (Streamlit, 선택)
+### 2) 웹 UI (FastAPI + 프론트, 권장)
+
+백엔드(API)와 정적 프론트를 각각 띄웁니다. Windows에서는 `실행하기.bat` 또는 `run_stock.ps1` 사용을 권장합니다.
+
+```bash
+# 터미널 1 — 프로젝트 루트에서
+python backend/main.py
+
+# 터미널 2 — frontend 폴더에서
+cd frontend
+python -m http.server 8765
+```
+
+브라우저에서 **http://127.0.0.1:8765** 로 접속합니다.
+
+### 3) 웹 UI (Streamlit, 선택)
 
 ```bash
 pip install streamlit
-streamlit run app_streamlit.py
+streamlit run frontend/app_streamlit.py
 ```
-
-브라우저에서 티커를 입력하고 기간을 선택하면 정보와 차트를 볼 수 있습니다.
 
 ## 티커 예시
 

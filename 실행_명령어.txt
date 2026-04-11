@@ -3,12 +3,14 @@
 ========================================
 
 [폴더 경로]
-G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock
+  아래 명령은 모두 **프로젝트 루트**(MyStock 저장소를 클론한 폴더)에서 실행합니다.
+  본인 PC 경로에 맞게 먼저 이동하세요.
+  예: cd C:\Users\사용자명\MyStock
 
 
 [1] 최초 1회만 - 패키지 설치
 ---------------------------
-cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
+cd <프로젝트 루트>
 pip install -r requirements.txt
 
 (웹 UI까지 쓸 경우)
@@ -17,10 +19,10 @@ pip install streamlit
 
 [2] 명령줄에서 주식 조회
 ---------------------------
-cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
-python stock_viewer.py 삼성전자
-python stock_viewer.py 네이버 1y
-python stock_viewer.py AAPL
+cd <프로젝트 루트>
+python backend/stock_viewer.py 삼성전자
+python backend/stock_viewer.py 네이버 1y
+python backend/stock_viewer.py AAPL
 
 ※ 회사명(한글) 또는 티커 입력 가능: 삼성전자, 네이버, 카카오, 애플 등
 ※ 기간: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y (생략 시 1y)
@@ -28,35 +30,36 @@ python stock_viewer.py AAPL
 
 [3] 국내 코스피 ETF 목록 보기
 ---------------------------
-cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
-python list_etfs.py
-python list_etfs.py 200
-python list_etfs.py KODEX
+cd <프로젝트 루트>
+python backend/list_etfs.py
+python backend/list_etfs.py 200
+python backend/list_etfs.py KODEX
 
 ※ 필터: 200(코스피200), KODEX, TIGER 등
 
 
 [4] 기존 Streamlit 기반 뷰어 (느림)
 ---------------------------
-cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
+cd <프로젝트 루트>
 streamlit run frontend/app_streamlit.py
 
 ※ 브라우저가 자동으로 열리면 티커 입력 후 조회
 
 
-[5] 🚀 새로운 초고속 웹 뷰어 실행 (FastAPI + JS)
+[5] 🚀 초고속 웹 뷰어 (FastAPI + JS)
 ---------------------------
 터미널을 **2개** 열어야 합니다.
 
 첫 번째 터미널 (백엔드 API 서버 실행):
-cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock"
+cd <프로젝트 루트>
 python backend/main.py
 
 두 번째 터미널 (프론트엔드 웹 서버 실행):
-cd "G:\내 드라이브\KNOU\Somoim\Jungwon_Drive_Obsidian_Vault\Stock\frontend"
+cd <프로젝트 루트>\frontend
 python -m http.server 8765
 
 ※ 실행 후 웹 브라우저에서 http://127.0.0.1:8765 에 접속하세요.
+※ Windows: 실행하기.bat 또는 run_stock.ps1 로 한 번에 띄울 수 있습니다.
 
 
 ========================================
@@ -68,4 +71,3 @@ python -m http.server 8765
 4. Alpha Vantage - 선택 (ALPHAVANTAGE_API_KEY)
 5. Finnhub - 선택 (FINNHUB_API_KEY)
 
-※ API_설정_안내.md 참고

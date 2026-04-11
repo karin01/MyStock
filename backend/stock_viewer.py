@@ -8,6 +8,11 @@
 import sys
 from pathlib import Path
 
+# 프로젝트 루트를 path에 넣어 저장소 루트에서 `python backend/stock_viewer.py` 실행 가능하게 함
+_root = Path(__file__).resolve().parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
 # 에러 가능성 처리: 필수 패키지 없을 때 안내
 try:
     import pandas as pd
