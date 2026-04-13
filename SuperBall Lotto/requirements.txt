@@ -1,0 +1,7 @@
+# 로또 확률 기반 번호 생성기
+# 당첨 기록 수집용 (requests는 API 호출 시에만 사용, 없으면 로컬 캐시만 사용)
+requests>=2.28.0
+# 웹 서버 실행용
+flask>=2.3.0
+# 프로덕션 WSGI 서버 (Render/Railway 배포용)
+gunicorn>=21.2.0
