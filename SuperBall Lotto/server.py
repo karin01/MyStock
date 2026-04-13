@@ -332,6 +332,19 @@ def _save_weekly_summary_cache(cache: dict) -> None:
         json.dump(cache, f, ensure_ascii=False, indent=2)
 
 
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    """ISO 문자열을 UTC 기준 datetime으로 파싱."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def _normalize_numbers_set(numbers: list[int]) -> list[int]:
     """번호 세트를 정렬/정수화해 비교 가능한 형태로 정규화."""
     try:
@@ -758,7 +771,8 @@ def index():
             width: 100%;
         }
         #cardGenerate { order: 1; }
-        #cardWeeklySummary { order: 2; }
+        #cardWeeklyGenStats { order: 2; }
+        #cardWeeklySummary { order: 3; }
         #cardWeeklySummary {
             border: 3px solid var(--accent);
             box-shadow: 0 8px 26px rgba(196, 30, 58, 0.20);
@@ -798,13 +812,13 @@ def index():
             font-size: 1.75rem;
             text-align: center;
         }
-        #cardDrawsTable { order: 3; }
-        #cardStats { order: 4; }
-        #cardPattern { order: 5; }
-        #cardHits { order: 6; }
-        #cardLogs { order: 7; }
-        #cardGuide { order: 8; }
-        #cardCaution { order: 9; }
+        #cardDrawsTable { order: 4; }
+        #cardStats { order: 5; }
+        #cardPattern { order: 6; }
+        #cardHits { order: 7; }
+        #cardLogs { order: 8; }
+        #cardGuide { order: 9; }
+        #cardCaution { order: 10; }
         #drawOneResult .ball { margin-right: 4px; }
         #drawOneResult .info { margin-bottom: 8px; }
         #drawOneResult .bonus { color: var(--accent); font-weight: 700; margin-left: 8px; }
@@ -885,6 +899,27 @@ def index():
         .toast.info { background: #2e5f93; }
         .toast-icon { font-size: 1rem; line-height: 1; }
         .toast-text { flex: 1; }
+        .site-footer {
+            width: 100%;
+            max-width: 1200px;
+            margin: 12px auto 0;
+            padding: 14px 16px;
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--accent);
+            background: #f6f2ec;
+            color: var(--text-muted);
+            font-size: 0.86rem;
+            line-height: 1.6;
+        }
+        .site-footer strong {
+            color: var(--text);
+            font-family: 'Outfit', sans-serif;
+            letter-spacing: 0.03em;
+        }
+        .site-footer ul {
+            margin: 8px 0 0;
+            padding-left: 18px;
+        }
         @media (min-width: 900px) {
             .dashboard-grid {
                 display: grid;
@@ -923,6 +958,7 @@ def index():
             .ball { width: 34px; height: 34px; min-width: 34px; font-size: 0.92rem; }
             .ball-small { width: 23px; height: 23px; font-size: 0.72rem; }
             .analysis-grid { grid-template-columns: 1fr; }
+            .site-footer { font-size: 0.82rem; padding: 12px; }
         }
     </style>
 </head>
@@ -1024,6 +1060,14 @@ def index():
         <div id="result"></div>
     </div>
 
+    <div class="card full" id="cardWeeklyGenStats">
+        <h2>이번 주 생성 번호 통계</h2>
+        <div class="toolbar-row" style="margin-bottom:8px;">
+            <button type="button" id="btnWeeklyGenStats" class="secondary">이번 주 통계 새로고침</button>
+        </div>
+        <div id="weeklyGenStatsResult"><p class="info">이번 주 생성 통계를 불러오는 중...</p></div>
+    </div>
+
     <div class="card full" id="cardStats">
         <h2>3단계) 확률 통계 보기</h2>
         <div class="stats-toolbar">
@@ -1107,6 +1151,15 @@ def index():
     </div>
 
     </main>
+    <footer class="site-footer" aria-label="서비스 이용상 주의사항">
+        <strong>서비스 이용상 주의사항</strong>
+        <ul>
+            <li>본 페이지의 생성 결과와 요약 정보는 참고용 보조 도구이며, 최종 당첨 여부 및 지급 기준은 동행복권 공식 공지/안내를 따릅니다.</li>
+            <li>공식 API 제한 시 일부 값은 뉴스 교차검증 기반 추정치가 포함될 수 있으므로, 고액 당첨금·당첨 인원은 반드시 공식 페이지에서 재확인해 주세요.</li>
+            <li>복권 사진(바코드/QR/일련번호) 공유, 선입금 요구 메시지, 비공식 링크 안내는 사기 위험이 있으니 즉시 차단하고 신고하세요.</li>
+            <li>당첨 복권은 분실/훼손되지 않도록 보관하고, 지급기한(지급개시일로부터 1년) 내 수령해 주세요.</li>
+        </ul>
+    </footer>
     <div id="toastStack" class="toast-stack" role="status" aria-live="polite"></div>
     <script>
         var OPENED_AS_FILE = (function() {
@@ -1128,6 +1181,7 @@ def index():
         const generationLogsEl = document.getElementById('generationLogsResult');
         const settleResultEl = document.getElementById('settleResult');
         const weeklySummaryEl = document.getElementById('weeklySummaryResult');
+        const weeklyGenStatsEl = document.getElementById('weeklyGenStatsResult');
         const toastStackEl = document.getElementById('toastStack');
         const flowGroup1 = document.getElementById('flowGroup1');
         const flowGroup2 = document.getElementById('flowGroup2');
@@ -1205,6 +1259,7 @@ def index():
         function refreshFlowStepByScroll() {
             const cards = [
                 { id: 'cardGenerate', step: 1 },
+                { id: 'cardWeeklyGenStats', step: 2 },
                 { id: 'cardWeeklySummary', step: 2 },
                 { id: 'cardDrawsTable', step: 2 },
                 { id: 'cardStats', step: 3 },
@@ -1568,6 +1623,7 @@ def index():
                     html += '</details>';
                 }
                 resultEl.innerHTML = html;
+                loadWeeklyGenerationStats();
                 loadHitDashboard();
                 loadGenerationLogs();
             } catch (e) {
@@ -1754,6 +1810,54 @@ def index():
                 patternEl.innerHTML = '<p class="error">패턴 분석 요청 실패: ' + e.message + '</p>';
             }
         }
+        function renderWeeklyGenerationStats(data) {
+            if (!data || data.error) {
+                weeklyGenStatsEl.innerHTML = '<p class="error">' + ((data && data.error) || '이번 주 생성 통계를 불러오지 못했습니다.') + '</p>';
+                return;
+            }
+            var html = '<p class="info"><strong>제' + data.targetDrawNo + '회 추첨 대상</strong> · 최근 ' + data.days + '일 · 생성 로그 ' + data.logCount + '건 집계</p>';
+            html += '<div class="pattern-grid">';
+            html += '<div class="pattern-box"><div class="k">이번 주 생성 세트</div><div class="v">' + (data.generatedSetCount || 0) + '</div><div class="k">전체 사용자 합산</div></div>';
+            html += '<div class="pattern-box"><div class="k">참여 닉네임 수</div><div class="v">' + (data.uniqueNicknameCount || 0) + '</div><div class="k">익명 포함 고유 참여자</div></div>';
+            html += '<div class="pattern-box"><div class="k">미선택 번호</div><div class="v">' + (data.unselectedCount || 0) + '</div><div class="k">이번 주 한 번도 안 뽑힌 번호</div></div>';
+            html += '<div class="pattern-box"><div class="k">총 선택 횟수</div><div class="v">' + (data.totalNumberPicks || 0) + '</div><div class="k">세트 내 번호 선택 누적</div></div>';
+            html += '</div>';
+            html += '<div class="pattern-grid">';
+            html += '<div class="pattern-box"><div class="pattern-title">이번 주 인기 번호 TOP 5</div>';
+            if (!data.top5 || data.top5.length === 0) {
+                html += '<p class="info">아직 집계할 생성 로그가 없습니다.</p>';
+            } else {
+                html += '<p>';
+                data.top5.forEach(function(item) { html += '<span class="ball ' + getBallColorClass(item.num) + '">' + item.num + '</span>'; });
+                html += '</p><p class="info">';
+                data.top5.forEach(function(item) { html += '<span style="display:inline-block; margin-right:8px;">' + item.num + '번(' + item.count + '회)</span>'; });
+                html += '</p>';
+            }
+            html += '</div>';
+            html += '<div class="pattern-box"><div class="pattern-title">이번 주 저빈도 번호 TOP 5</div>';
+            if (!data.cold5 || data.cold5.length === 0) {
+                html += '<p class="info">아직 집계할 생성 로그가 없습니다.</p>';
+            } else {
+                html += '<p>';
+                data.cold5.forEach(function(item) { html += '<span class="ball ' + getBallColorClass(item.num) + '">' + item.num + '</span>'; });
+                html += '</p><p class="info">';
+                data.cold5.forEach(function(item) { html += '<span style="display:inline-block; margin-right:8px;">' + item.num + '번(' + item.count + '회)</span>'; });
+                html += '</p>';
+            }
+            html += '</div></div>';
+            weeklyGenStatsEl.innerHTML = html;
+        }
+        async function loadWeeklyGenerationStats() {
+            if (OPENED_AS_FILE) return;
+            weeklyGenStatsEl.innerHTML = '<p class="info">이번 주 생성 통계를 불러오는 중...</p>';
+            try {
+                var r = await fetch('/api/weekly_generation_stats');
+                var d = await r.json();
+                renderWeeklyGenerationStats(d);
+            } catch (e) {
+                weeklyGenStatsEl.innerHTML = '<p class="error">통계 요청 실패: ' + e.message + '</p>';
+            }
+        }
         function rankClass(rank) {
             if (rank === '1등') return 'rank-1';
             if (rank === '2등') return 'rank-2';
@@ -1911,6 +2015,7 @@ def index():
         document.getElementById('btnGenerationLogs').onclick = function() { loadGenerationLogs(); };
         document.getElementById('btnSettleLatest').onclick = function() { settleLatestDraw(); };
         document.getElementById('btnWeeklySummary').onclick = function() { loadWeeklySummary(); };
+        document.getElementById('btnWeeklyGenStats').onclick = function() { loadWeeklyGenerationStats(); };
         document.getElementById('btnWeeklyManualSave').onclick = function() { saveWeeklyManualJson(); };
         document.getElementById('btnWeeklyScript').onclick = async function() {
             const script = getWeeklyExtractScript();
@@ -1934,6 +2039,7 @@ def index():
             loadGenerationLogs();
         };
         loadWeeklySummary();
+        loadWeeklyGenerationStats();
         loadPatternDashboard();
         loadHitDashboard();
         loadGenerationLogs();
@@ -2402,6 +2508,62 @@ def api_weekly_summary():
     if not data:
         return jsonify({"error": "이번 주 당첨 정보를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요."})
     return jsonify(data)
+
+
+@app.route("/api/weekly_generation_stats")
+def api_weekly_generation_stats():
+    """최근 N일 생성 로그 기준 주간 생성 통계."""
+    draws = _ensure_draws()
+    latest_draw_no = max((d.get("drwNo", 0) for d in draws), default=0)
+    target_draw_no = request.args.get("targetDrawNo", type=int) or (latest_draw_no + 1)
+    days = min(max(request.args.get("days", default=7, type=int) or 7, 1), 30)
+    now_utc = datetime.now(timezone.utc)
+    cutoff = now_utc - timedelta(days=days)
+
+    logs = _load_generated_logs()
+    number_counter: Counter[int] = Counter()
+    nickname_set: set[str] = set()
+    generated_set_count = 0
+    log_count = 0
+
+    for log in logs:
+        if log.get("targetDrawNo") != target_draw_no:
+            continue
+        gen_at = _parse_iso_datetime(log.get("generatedAt"))
+        if not gen_at or gen_at < cutoff:
+            continue
+        sets = [s for s in log.get("numbers", []) if isinstance(s, list) and len(s) == 6]
+        if not sets:
+            continue
+        log_count += 1
+        nickname = (log.get("nickname") or "익명").strip() or "익명"
+        nickname_set.add(nickname)
+        for one_set in sets:
+            generated_set_count += 1
+            for n in one_set:
+                try:
+                    num = int(n)
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= num <= 45:
+                    number_counter[num] += 1
+
+    top5 = [{"num": n, "count": c} for n, c in number_counter.most_common(5)]
+    cold_pool = sorted([(n, number_counter.get(n, 0)) for n in range(1, 46)], key=lambda x: (x[1], x[0]))
+    cold5 = [{"num": n, "count": c} for n, c in cold_pool[:5]]
+    unselected_count = sum(1 for n in range(1, 46) if number_counter.get(n, 0) == 0)
+
+    return jsonify({
+        "targetDrawNo": target_draw_no,
+        "days": days,
+        "logCount": log_count,
+        "generatedSetCount": generated_set_count,
+        "uniqueNicknameCount": len(nickname_set),
+        "unselectedCount": unselected_count,
+        "totalNumberPicks": sum(number_counter.values()),
+        "top5": top5,
+        "cold5": cold5,
+    })
 
 
 @app.route("/api/weekly_summary_manual", methods=["POST"])
