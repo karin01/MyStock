@@ -1,0 +1,10 @@
+{
+  "draws": [
+    {"drwNo": 1, "drwNoDate": "2002-12-07", "drwtNo1": 10, "drwtNo2": 23, "drwtNo3": 29, "drwtNo4": 33, "drwtNo5": 37, "drwtNo6": 40, "bnusNo": 16},
+    {"drwNo": 2, "drwNoDate": "2002-12-14", "drwtNo1": 9, "drwtNo2": 13, "drwtNo3": 21, "drwtNo4": 25, "drwtNo5": 32, "drwtNo6": 42, "bnusNo": 5},
+    {"drwNo": 3, "drwNoDate": "2002-12-21", "drwtNo1": 2, "drwtNo2": 8, "drwtNo3": 19, "drwtNo4": 27, "drwtNo5": 39, "drwtNo6": 44, "bnusNo": 12},
+    {"drwNo": 4, "drwNoDate": "2002-12-28", "drwtNo1": 7, "drwtNo2": 14, "drwtNo3": 22, "drwtNo4": 28, "drwtNo5": 31, "drwtNo6": 36, "bnusNo": 45},
+    {"drwNo": 5, "drwNoDate": "2003-01-04", "drwtNo1": 1, "drwtNo2": 11, "drwtNo3": 18, "drwtNo4": 26, "drwtNo5": 35, "drwtNo6": 43, "bnusNo": 4}
+  ],
+  "total": 5
+}

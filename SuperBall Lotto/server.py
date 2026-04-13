@@ -7,16 +7,18 @@ Flask로 API + 간단한 페이지 제공.
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
+from functools import wraps
 from pathlib import Path
 from urllib import error as urlerror
 from urllib import request as urlrequest
 from xml.etree import ElementTree as ET
 
-from flask import Flask, jsonify, make_response, render_template_string, request, send_file
+from flask import Flask, jsonify, make_response, render_template_string, request, send_file, session
 
 from lotto_data import DEFAULT_CACHE_PATH, add_from_text, add_manual_draw, fetch_all_from_api, fetch_one_from_news_url, fetch_one_round_from_api, load_history, save_history
 from lotto_probability import compute_frequency, frequency_to_probability, get_probability_map
@@ -24,6 +26,7 @@ from lotto_generator import generate_multiple
 from analysis_engine import build_pattern_dashboard
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SUPERBALL_SECRET_KEY", "superball-dev-secret-change-me")
 SAMPLE_PATH = Path(__file__).resolve().parent / "lotto_history_sample.json"
 # server.py와 같은 폴더의 lotto_history.json 사용 (실행 위치와 무관)
 CACHE_PATH = Path(__file__).resolve().parent / "lotto_history.json"
@@ -34,6 +37,8 @@ WEEKLY_SUMMARY_PATH = Path(__file__).resolve().parent / "weekly_summary_cache.js
 _auto_fetch_state = {"running": False, "message": ""}
 AUTO_FETCH_START = 100  # 100회차부터 수집
 BASE_DRAW_DATE = date(2002, 12, 7)  # 1회 추첨일
+ADMIN_USERNAME = os.environ.get("SUPERBALL_ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("SUPERBALL_ADMIN_PASSWORD", "admin1234")
 
 
 def _estimate_draw_date(drw_no: int) -> str:
@@ -345,6 +350,21 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
     return dt.astimezone(timezone.utc)
 
 
+def _is_admin_logged_in() -> bool:
+    """현재 세션이 관리자 로그인 상태인지 확인."""
+    return bool(session.get("is_admin") is True and session.get("admin_user") == ADMIN_USERNAME)
+
+
+def _admin_required_json(fn):
+    """관리자 전용 API 보호 데코레이터(JSON 응답)."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not _is_admin_logged_in():
+            return jsonify({"error": "관리자 로그인 후 이용해 주세요.", "code": "ADMIN_REQUIRED"}), 403
+        return fn(*args, **kwargs)
+    return wrapper
+
+
 def _normalize_numbers_set(numbers: list[int]) -> list[int]:
     """번호 세트를 정렬/정수화해 비교 가능한 형태로 정규화."""
     try:
@@ -537,6 +557,70 @@ def index():
             color: var(--text-muted);
             margin: 0;
             font-weight: 500;
+        }
+        .admin-bar {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto 8px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 8px;
+        }
+        .admin-badge {
+            display: inline-block;
+            border: 1px solid var(--border);
+            background: #f5f1eb;
+            color: var(--text-muted);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+        .admin-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            padding: 12px;
+        }
+        .admin-modal-overlay.show { display: flex; }
+        .admin-modal {
+            width: min(420px, 100%);
+            background: #fff;
+            border: 1px solid var(--border);
+            border-top: 4px solid var(--accent);
+            border-radius: 4px;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+            padding: 16px 14px 14px;
+        }
+        .admin-modal h3 {
+            margin: 0 0 10px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.02rem;
+            letter-spacing: 0.03em;
+        }
+        .admin-modal .admin-modal-row { margin-bottom: 9px; }
+        .admin-modal label { display: block; margin-bottom: 4px; font-size: 0.85rem; }
+        .admin-modal input {
+            width: 100%;
+            max-width: 100%;
+            margin-bottom: 0;
+        }
+        .admin-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .admin-modal-error {
+            min-height: 20px;
+            margin-top: 6px;
+            color: #b63b3b;
+            font-size: 0.84rem;
         }
         .flow-nav {
             width: 100%;
@@ -967,6 +1051,32 @@ def index():
         <h1 class="site-title">SuperBall Lotto</h1>
         <p class="site-tagline">당첨 기록 기반 확률 번호 생성기</p>
     </header>
+    <div class="admin-bar">
+        {% if admin_logged_in %}
+        <span class="admin-badge">관리자 로그인됨</span>
+        <button type="button" id="btnAdminLogout" class="secondary">관리자 로그아웃</button>
+        {% else %}
+        <button type="button" id="btnAdminLogin" class="secondary">관리자 로그인</button>
+        {% endif %}
+    </div>
+    <div id="adminLoginModal" class="admin-modal-overlay" aria-hidden="true">
+        <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="adminLoginTitle">
+            <h3 id="adminLoginTitle">관리자 로그인</h3>
+            <div class="admin-modal-row">
+                <label for="adminLoginUsername">아이디</label>
+                <input type="text" id="adminLoginUsername" maxlength="40" autocomplete="username" placeholder="관리자 아이디">
+            </div>
+            <div class="admin-modal-row">
+                <label for="adminLoginPassword">비밀번호</label>
+                <input type="password" id="adminLoginPassword" maxlength="80" autocomplete="current-password" placeholder="관리자 비밀번호">
+            </div>
+            <div id="adminLoginError" class="admin-modal-error"></div>
+            <div class="admin-modal-actions">
+                <button type="button" id="btnAdminLoginCancel" class="secondary">취소</button>
+                <button type="button" id="btnAdminLoginSubmit" class="primary">로그인</button>
+            </div>
+        </div>
+    </div>
     <section class="flow-nav">
         <button type="button" class="flow-step" id="flowGroup1" data-target="cardGenerate"><strong>1~2단계: 생성/등록</strong>번호 생성 후 실제 당첨 회차를 등록합니다.</button>
         <button type="button" class="flow-step" id="flowGroup2" data-target="cardStats"><strong>3~4단계: 통계/분석</strong>확률 통계와 패턴 분석으로 흐름을 확인합니다.</button>
@@ -983,15 +1093,18 @@ def index():
             <button type="button" id="btnWeeklySummary" class="secondary">이번 주 자동 불러오기</button>
             <button type="button" id="btnWeeklyScript" class="secondary">동행복권 추출 스크립트 보기</button>
         </div>
+        {% if admin_logged_in %}
         <p class="info">자동 수집이 안 되면, 동행복권 결과 페이지(F12 콘솔)에서 추출한 JSON을 아래에 붙여넣어 반영할 수 있습니다.</p>
         <textarea id="weeklyManualJson" rows="3" placeholder='{"drwNo":1219,"drwNoDate":"2026-04-11","numbers":[1,2,15,28,39,45],"bonus":31,"firstPrizeWinnerCount":12,"firstPrizeAmount":2141604938,"totalSalesAmount":105407618000}' style="width:100%; max-width:100%;"></textarea>
         <div class="toolbar-row" style="margin-bottom:8px;">
             <button type="button" id="btnWeeklyManualSave" class="primary">붙여넣기 반영</button>
         </div>
+        {% endif %}
         <div id="weeklySummaryResult"><p class="info">당첨 요약을 불러오는 중...</p></div>
     </div>
     <div class="card full" id="cardDrawsTable">
         <h2>2단계) 당첨 기록 확인 · 회차 등록</h2>
+        {% if admin_logged_in %}
         <p class="info"><strong>기존 1등 당첨 기록은 직접 입력합니다.</strong> 회차와 본번호 6개·보너스 1개(총 7개)를 입력한 뒤 «이 번호로 추가»를 누르면 아래 목록에 반영됩니다. <span style="color:#666;">(저장: 서버 폴더의 lotto_history.json)</span></p>
         <label>회차 + 당첨번호 7개 입력</label>
         <div class="inline-round-input">
@@ -1011,6 +1124,7 @@ def index():
         </div>
         <div id="topAddResult" style="margin-top:8px;"></div>
         <hr class="divider">
+        {% endif %}
         <label>보유 회차 선택해서 보기</label>
         <input type="number" id="drawNoInput" min="1" max="2000" placeholder="회차 직접 입력 (예: 1214)" style="max-width:140px; margin-bottom:8px;">
         <span class="info" style="margin-left:6px;">회</span>
@@ -1102,11 +1216,13 @@ def index():
     <div class="card full" id="cardHits">
         <h2>5단계) 명예의 전당 · 당첨 히스토리</h2>
         <p class="info">생성한 번호를 실제 당첨 회차와 비교해 4등/5등 이상 사례를 기록합니다.</p>
+        {% if admin_logged_in %}
         <div class="toolbar-row" style="margin-bottom:8px;">
             <button type="button" id="btnSettleLatest" class="primary">토요일 마감하기</button>
             <input type="number" id="settleDrawNoInput" min="1" max="3000" placeholder="회차 지정(선택)" style="max-width:160px; margin:0;">
         </div>
         <div id="settleResult" class="info" style="margin-bottom:8px;"></div>
+        {% endif %}
         <button type="button" id="btnHitDashboard" class="secondary">히스토리 새로고침</button>
         <div id="hitDashboardResult"><p class="info">히스토리를 불러오는 중...</p></div>
     </div>
@@ -1343,7 +1459,12 @@ def index():
               + "})();";
         }
         async function saveWeeklyManualJson() {
-            const raw = (document.getElementById('weeklyManualJson').value || '').trim();
+            const weeklyManualEl = document.getElementById('weeklyManualJson');
+            if (!weeklyManualEl) {
+                showToast('관리자 로그인 후 반영할 수 있습니다.', 'error');
+                return;
+            }
+            const raw = (weeklyManualEl.value || '').trim();
             if (!raw) {
                 showToast('붙여넣을 JSON이 비어 있습니다.', 'error');
                 return;
@@ -1498,7 +1619,8 @@ def index():
         };
         var btnRefreshDraws = document.getElementById('btnRefreshDraws');
         if (btnRefreshDraws) btnRefreshDraws.onclick = function() { document.getElementById('drawsTableWrap').innerHTML = '<p>불러오는 중...</p>'; refreshDrawsTable(); };
-        document.getElementById('btnTopAdd').onclick = async () => {
+        var btnTopAddEl = document.getElementById('btnTopAdd');
+        if (btnTopAddEl) btnTopAddEl.onclick = async () => {
             const res = document.getElementById('topAddResult');
             const drwNo = document.getElementById('topDrwNo').value.trim();
             const n1 = document.getElementById('topN1').value.trim();
@@ -2013,10 +2135,12 @@ def index():
         document.getElementById('btnPattern').onclick = function() { loadPatternDashboard(); };
         document.getElementById('btnHitDashboard').onclick = function() { loadHitDashboard(); };
         document.getElementById('btnGenerationLogs').onclick = function() { loadGenerationLogs(); };
-        document.getElementById('btnSettleLatest').onclick = function() { settleLatestDraw(); };
+        var btnSettleLatestEl = document.getElementById('btnSettleLatest');
+        if (btnSettleLatestEl) btnSettleLatestEl.onclick = function() { settleLatestDraw(); };
         document.getElementById('btnWeeklySummary').onclick = function() { loadWeeklySummary(); };
         document.getElementById('btnWeeklyGenStats').onclick = function() { loadWeeklyGenerationStats(); };
-        document.getElementById('btnWeeklyManualSave').onclick = function() { saveWeeklyManualJson(); };
+        var btnWeeklyManualSaveEl = document.getElementById('btnWeeklyManualSave');
+        if (btnWeeklyManualSaveEl) btnWeeklyManualSaveEl.onclick = function() { saveWeeklyManualJson(); };
         document.getElementById('btnWeeklyScript').onclick = async function() {
             const script = getWeeklyExtractScript();
             try {
@@ -2026,6 +2150,103 @@ def index():
                 showToast('스크립트 복사 실패. 수동으로 복사해 주세요.', 'error');
             }
         };
+        var btnAdminLoginEl = document.getElementById('btnAdminLogin');
+        var adminLoginModalEl = document.getElementById('adminLoginModal');
+        var adminLoginUsernameEl = document.getElementById('adminLoginUsername');
+        var adminLoginPasswordEl = document.getElementById('adminLoginPassword');
+        var adminLoginErrorEl = document.getElementById('adminLoginError');
+        var btnAdminLoginSubmitEl = document.getElementById('btnAdminLoginSubmit');
+        var btnAdminLoginCancelEl = document.getElementById('btnAdminLoginCancel');
+
+        function closeAdminLoginModal() {
+            if (!adminLoginModalEl) return;
+            adminLoginModalEl.classList.remove('show');
+            adminLoginModalEl.setAttribute('aria-hidden', 'true');
+            if (adminLoginErrorEl) adminLoginErrorEl.textContent = '';
+            if (adminLoginPasswordEl) adminLoginPasswordEl.value = '';
+        }
+        function openAdminLoginModal() {
+            if (!adminLoginModalEl) return;
+            adminLoginModalEl.classList.add('show');
+            adminLoginModalEl.setAttribute('aria-hidden', 'false');
+            if (adminLoginUsernameEl) {
+                if (!adminLoginUsernameEl.value) adminLoginUsernameEl.value = 'admin';
+                adminLoginUsernameEl.focus();
+                adminLoginUsernameEl.select();
+            }
+            if (adminLoginErrorEl) adminLoginErrorEl.textContent = '';
+        }
+        async function submitAdminLogin() {
+            var username = (adminLoginUsernameEl && adminLoginUsernameEl.value ? adminLoginUsernameEl.value : '').trim();
+            var password = (adminLoginPasswordEl && adminLoginPasswordEl.value ? adminLoginPasswordEl.value : '').trim();
+            if (!username || !password) {
+                if (adminLoginErrorEl) adminLoginErrorEl.textContent = '아이디와 비밀번호를 모두 입력해 주세요.';
+                return;
+            }
+            try {
+                var r = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username, password: password }),
+                });
+                var d = await r.json();
+                if (d.error) {
+                    if (adminLoginErrorEl) adminLoginErrorEl.textContent = d.error;
+                    return;
+                }
+                showToast(d.message || '관리자 로그인 성공', 'success');
+                closeAdminLoginModal();
+                location.reload();
+            } catch (e) {
+                if (adminLoginErrorEl) adminLoginErrorEl.textContent = '로그인 요청 실패: ' + e.message;
+            }
+        }
+        if (btnAdminLoginEl) btnAdminLoginEl.onclick = function() { openAdminLoginModal(); };
+        if (btnAdminLoginCancelEl) btnAdminLoginCancelEl.onclick = function() { closeAdminLoginModal(); };
+        if (btnAdminLoginSubmitEl) btnAdminLoginSubmitEl.onclick = function() { submitAdminLogin(); };
+        if (adminLoginModalEl) {
+            adminLoginModalEl.addEventListener('click', function(e) {
+                if (e.target === adminLoginModalEl) closeAdminLoginModal();
+            });
+        }
+        if (adminLoginPasswordEl) {
+            adminLoginPasswordEl.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitAdminLogin();
+                }
+            });
+        }
+        if (adminLoginUsernameEl) {
+            adminLoginUsernameEl.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (adminLoginPasswordEl) adminLoginPasswordEl.focus();
+                }
+            });
+        }
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && adminLoginModalEl && adminLoginModalEl.classList.contains('show')) {
+                closeAdminLoginModal();
+            }
+        });
+        var btnAdminLogoutEl = document.getElementById('btnAdminLogout');
+        if (btnAdminLogoutEl) {
+            btnAdminLogoutEl.onclick = async function() {
+                try {
+                    var r = await fetch('/api/admin/logout', { method: 'POST' });
+                    var d = await r.json();
+                    if (d.error) {
+                        showToast('로그아웃 실패: ' + d.error, 'error');
+                        return;
+                    }
+                    showToast(d.message || '로그아웃되었습니다.', 'info');
+                    location.reload();
+                } catch (e) {
+                    showToast('로그아웃 요청 실패: ' + e.message, 'error');
+                }
+            };
+        }
         sanitizeInitialInputs();
         document.getElementById('btnNicknameSearch').onclick = function() {
             nicknameFilter = (document.getElementById('nicknameSearchInput').value || '').trim();
@@ -2050,7 +2271,7 @@ def index():
 </body>
 </html>
 """
-    resp = make_response(render_template_string(html, draws=draws))
+    resp = make_response(render_template_string(html, draws=draws, admin_logged_in=_is_admin_logged_in()))
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
@@ -2078,7 +2299,41 @@ def api_status():
     })
 
 
+@app.route("/api/admin/status")
+def api_admin_status():
+    """관리자 로그인 상태 확인."""
+    return jsonify({
+        "isAdmin": _is_admin_logged_in(),
+        "username": ADMIN_USERNAME if _is_admin_logged_in() else "",
+    })
+
+
+@app.route("/api/admin/login", methods=["POST"])
+def api_admin_login():
+    """관리자 로그인."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+    except Exception:
+        data = {}
+    username = (data.get("username") or "").strip()
+    password = (data.get("password") or "").strip()
+    if username != ADMIN_USERNAME or password != ADMIN_PASSWORD:
+        return jsonify({"error": "아이디 또는 비밀번호가 올바르지 않습니다."}), 401
+    session["is_admin"] = True
+    session["admin_user"] = ADMIN_USERNAME
+    return jsonify({"message": "관리자 로그인 성공", "isAdmin": True})
+
+
+@app.route("/api/admin/logout", methods=["POST"])
+def api_admin_logout():
+    """관리자 로그아웃."""
+    session.pop("is_admin", None)
+    session.pop("admin_user", None)
+    return jsonify({"message": "관리자 로그아웃 완료", "isAdmin": False})
+
+
 @app.route("/api/auto_fetch", methods=["GET", "POST"])
+@_admin_required_json
 def api_auto_fetch():
     """백그라운드에서 100회차~ 수집 시작. 즉시 응답."""
     if _auto_fetch_state["running"]:
@@ -2115,6 +2370,8 @@ def api_draw_by_no():
     draws = _ensure_draws()
     by_no = {d["drwNo"]: d for d in draws}
     force_fetch = request.args.get("fetch", "").lower() in ("1", "true", "yes")
+    if force_fetch and not _is_admin_logged_in():
+        return jsonify({"error": "관리자 로그인 후 회차 자동 추가를 사용할 수 있습니다.", "code": "ADMIN_REQUIRED"}), 403
     if drw_no in by_no and not force_fetch:
         return jsonify({"draw": by_no[drw_no], "from_cache": True})
     if force_fetch:
@@ -2135,6 +2392,7 @@ def api_draw_by_no():
 
 
 @app.route("/api/fetch", methods=["GET", "POST"])
+@_admin_required_json
 def api_fetch():
     """1회차부터 당첨 기록 수집 후 캐시 저장. (동행복권 API 호출 — 1~2분 소요 가능)"""
     try:
@@ -2157,6 +2415,7 @@ def api_fetch():
 
 
 @app.route("/api/fetch_from_url")
+@_admin_required_json
 def api_fetch_from_url():
     """뉴스 기사 URL에서 당첨번호 파싱 후 캐시에 추가."""
     url = request.args.get("url", "").strip()
@@ -2171,6 +2430,7 @@ def api_fetch_from_url():
 
 
 @app.route("/api/add_manual", methods=["POST"])
+@_admin_required_json
 def api_add_manual():
     """회차·당첨번호 6개·보너스(선택)를 직접 입력해 캐시에 추가."""
     try:
@@ -2197,6 +2457,7 @@ def api_add_manual():
 
 
 @app.route("/api/add_from_text", methods=["POST"])
+@_admin_required_json
 def api_add_from_text():
     """한 줄 문장에서 회차·당첨번호를 파싱해 캐시에 추가. 예: 1214회 로또 … 당첨번호 '10, 15, 19, 27, 30, 33'"""
     try:
@@ -2567,6 +2828,7 @@ def api_weekly_generation_stats():
 
 
 @app.route("/api/weekly_summary_manual", methods=["POST"])
+@_admin_required_json
 def api_weekly_summary_manual():
     """동행복권 페이지에서 수동 추출한 주간 요약 저장."""
     try:
@@ -2608,6 +2870,7 @@ def api_weekly_summary_manual():
 
 
 @app.route("/api/settle", methods=["POST"])
+@_admin_required_json
 def api_settle():
     """이번 회차(또는 지정 회차) 대기 로그 채점/확정 처리."""
     draws = _ensure_draws()

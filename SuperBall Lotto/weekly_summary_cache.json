@@ -1,0 +1,18 @@
+{
+  "1219": {
+    "drwNo": 1219,
+    "drwNoDate": "2026-04-11",
+    "numbers": [
+      1,
+      2,
+      15,
+      28,
+      39,
+      45
+    ],
+    "bonus": 31,
+    "firstPrizeWinnerCount": 12,
+    "firstPrizeAmount": 2500000000,
+    "totalSalesAmount": null
+  }
+}
